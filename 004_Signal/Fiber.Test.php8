@@ -1,0 +1,59 @@
+<?
+include 'All.Test.php';
+
+$TickEvents=[];
+
+function do_ticks()
+{
+  global $TickEvents;
+  $List=$TickEvents;
+  $TickEvents=[];
+  foreach($List as $Event)
+    $Event();
+}
+
+// Функция, имитирующая асинхронный запрос (например, к API)
+function fetchUserData(int $userId): Promise 
+{
+  $deferred = new Deferred();
+  
+  $Func=function() use ($deferred, $userId) {
+    $deferred->resolve(["id" => $userId, "name" => "The User", "role" => "admin"]);
+  };
+
+  // Имитируем некую асинхронную операцию (в реальности тут будет ваш Event Loop)
+  // Для примера просто резолвим через секунду
+  global $TickEvents;
+  $TickEvents[]=$Func;
+
+  return $deferred->promise();
+}
+
+// Запускаем асинхронный контекст через Fiber
+$fiber = new Fiber(function() {
+  try {
+    echo "Require user...\n";
+
+    // Магия: код замирает здесь, пока промис не выполнится
+    $user = fetchUserData(42)->await();
+
+    echo "User received: ".$user['name']."\n";
+
+    // Можно делать цепочки зависимых запросов друг за другом:
+    // $orders = fetchOrders($user['id'])->await();
+  }
+  catch (\Throwable $e)
+  {
+    echo "Error happend: ".$e->getMessage()."\n";
+  }
+});
+
+// Запускаем файбер (он дойдет до Fiber::suspend() внутри await() и вернет управление сюда)
+$fiber->start();
+
+// Имитируем работу Event Loop, который "тикает" и продвигает асинхронные задачи
+// В реальном приложении это делает класс Loop/EventLoop
+for ($i = 0; $i < 5; $i++) {
+  // Вызываем тики, чтобы сработал наш асинхронный код
+  do_ticks();
+}

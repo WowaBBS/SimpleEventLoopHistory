@@ -1,0 +1,56 @@
+<?
+include 'All.Test.php';
+
+// Имитируем долгий сетевой запрос к API
+function longApiCall(): Promise
+{
+  $deferred = new Deferred();
+  
+  // Ответ придет только через 3 секунды
+  Loop::delay(3.0, function() use ($deferred) {
+    $deferred->resolve("Sucessfuly ansver from API ??");
+  });
+  
+  return $deferred->promise();
+}
+
+// Процесс 1: Запрос, который НЕ уложится в таймаут
+Loop::async(function() {
+  echo "[Process 1] Make an API request with a 1.0 sec timeout...\n";
+  
+  try
+  {
+    // Просто вызываем метод цепочкой прямо у промиса!
+    $result = longApiCall()->timeout(1.0)->await();
+    echo "[Process 1] Received: " . $result . "\n";
+  }
+  catch (\Throwable $e) 
+  {
+    // Сработает этот блок, так как 1.0с < 3.0с
+    echo "[Process 1] Error: " . $e->getMessage() . "\n";
+  }
+});
+
+// Процесс 2: Запрос, который УЛОЖИТСЯ в таймаут (дали ему 4 секунды)
+Loop::async(function() {
+    // Немного подождем, чтобы логи не перемешивались слишком хаотично
+    sleepAsync(1.2)->await();
+    
+    echo "[Process 2] Make an API request with a 4.0 sec timeout...\n";
+    
+    try {
+        // Можно кастомизировать текст ошибки при желании
+        $result = longApiCall()
+            ->timeout(4.0, "API works too slow, cancel!")
+            ->await();
+            
+        echo "[Process 2] Sucess! Received: " . $result . "\n";
+    } catch (\Throwable $e) {
+        echo "[Process 2] Error: " . $e->getMessage() . "\n";
+    }
+});
+
+// Запуск цикла событий
+echo "--- Start Event Loop ---\n";
+Loop::run();
+echo "--- End Event Loop ---\n";

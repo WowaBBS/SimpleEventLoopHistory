@@ -1,0 +1,39 @@
+<?
+include 'All.Test.php';
+
+// Подписываемся на сигнал SIGINT (Константа 2 - это универсальный SIGINT)
+Loop::addSignal(2, function() {
+  echo "\n[Signal] Received Ctrl+C! Softly finish jobs...\n";
+  Loop::stop();
+});
+
+Loop::async(function() {
+  echo "[Process] Start parallel requests...\n";
+
+  // Создаем массив асинхронных задач
+  $promises = [
+    'request_1' => httpGetAsync('http://127.0.0.1'), // ответит через 1 сек
+    'request_2' => httpGetAsync('http://127.0.0.1'), // ответит через 2 сек
+    'manual_sleep' => sleepAsync(1.5)->then(fn() => "Sleeping is done"),
+  ];
+
+  try
+  {
+    // Одновременное ожидание всех задач через Fiber await!
+    // Общее время выполнения будет ~2 секунды вместо 4.5 последовательных.
+    $results = Promise::all($promises)->await();
+
+    echo "[Process] All tasks have done!\n";
+    echo "The result of sleeping: " . $results['manual_sleep'] . "\n";
+    echo "Length of response1 is: " . strlen($results['request_1']) . " bytes\n";
+    
+  }
+  catch (\Throwable $e)
+  {
+    echo "[Process] Error was happend in one of the task: " . $e->getMessage() . "\n";
+  }
+});
+
+echo "--- Start Event Loop (press Ctrl+C for checking of signals) ---\n";
+Loop::run();
+echo "--- Event loop has done without of errors ---\n";

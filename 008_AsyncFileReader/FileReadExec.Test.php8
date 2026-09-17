@@ -1,0 +1,22 @@
+<?
+include 'All.Test.php';
+
+// Запускаем асинхронное чтение
+//$FileName='large_file.log';
+$FileName=__FILE__;
+$reader = new AsyncFileReader($FileName, function($data, $error) {
+  if ($error) 
+    echo "Error: $error\n";
+  else 
+    echo "File was readed async! Length: " . strlen($data) . "\n";
+});
+
+echo "Main thread is free and is doing another job...\n";
+
+// Имитация простейшего Event Loop
+while ($reader->tick())
+{
+  // Здесь приложение может обрабатывать HTTP-запросы или тики таймера
+  echo "."; 
+  usleep(50000); // 50мс свободного времени
+}

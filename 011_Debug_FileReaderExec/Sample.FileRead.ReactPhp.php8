@@ -1,0 +1,20 @@
+<?
+use React\EventLoop\Loop;
+use React\Filesystem\Filesystem;
+
+require __DIR__ . '/vendor/autoload.php';
+
+$loop = Loop::get();
+$filesystem = Filesystem::create($loop);
+
+// Àñèíõğîííîå ÷òåíèå ôàéëà
+$filesystem->file('large_file.txt')->getContents()->then(
+  function (string $contents) {
+    echo "Ôàéë óñïåøíî ïğî÷èòàí! Ğàçìåğ: " . strlen($contents) . " áàéò.\n";
+  },
+  function (Exception $e) {
+    echo "Îøèáêà ÷òåíèÿ: " . $e->getMessage() . "\n";
+  }
+);
+
+$loop->run();
