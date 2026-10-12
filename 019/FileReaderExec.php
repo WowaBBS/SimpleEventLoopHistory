@@ -109,7 +109,7 @@ class FileReaderExec
     proc_close($this->process);
     $this->process = null;
     if(StrLen($error))
-      $deferred->resolve($data); // Успешно отдаем ответ
+      $deferred->reject($error);
     else
       $deferred->resolve($data); // Успешно отдаем ответ
   }
