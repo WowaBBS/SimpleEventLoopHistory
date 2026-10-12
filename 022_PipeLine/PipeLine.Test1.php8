@@ -1,0 +1,93 @@
+<?
+$db = new MockDB();
+
+// 1. Настраиваем TableA: 120 строк. База отдаст этот стрим с задержкой 0.1 сек.
+$tableAData =;
+for ($i = 1; $i <= 120; $i++) {
+    $tableAData[] = ['id' => $i, 'name' => "Item_$i", 'url' => "https://api.com"];
+}
+$db->setupResponse("SELECT * FROM TableA", delaySeconds: 0.1, data: $tableAData);
+
+// 2. Настраиваем TableB: ответы для первой пачки (ID 1001 - 1100) и второй (ID 1101 - 1120)
+// База будет <думать> над этим запросом 0.2 сек.
+$tableBData =;
+for ($i = 1; $i <= 120; $i++) {
+    $tableBData[] = ['id' => $i + 1000, 'a_id' => $i, 'amount' => 10]; // Каждая запись добавит 10 в сумму
+}
+$db->setupResponse("SELECT * FROM TableB", delaySeconds: 0.2, data: $tableBData);
+
+// 3. Настраиваем пустой ответ для Insert в TableC
+$db->setupResponse("INSERT INTO TableC", delaySeconds: 0.05, data: );
+
+Loop::async(function() use ($db)
+{
+  $task = 'MyTask';
+
+  // Начинаем конвейер
+  Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA WHERE task = ?", [$task]))
+
+    // Step 1: Логируем и запускаем параллельный HTTP-запрос для каждой строки
+    ->map(function($row, $isEnd) {
+      Logger::logAsync('Get TableA.Item.Name: ' . $row['name']);
+
+      // Возвращаем кортеж. Метод map внутри Pipeline сам увидит промис
+      // от httpGetAsync и сделает ему await() без блокировки потока!
+      return [
+        'row' => $row,
+        'http' => httpGetAsync($row['url'])
+      ];
+    })
+
+    // Step 2: Группируем по 100 штук или 1 секунде
+    ->group(count: 100, timeout: 1.0)
+
+    // Step 3: Обрабатываем пачку ответов и делаем запрос к TableB
+    ->map(function($list, $isEnd) use ($db) {
+      Logger::logAsync("Batch received: " . count($list) . " answers");
+
+      $ids = [];
+      foreach ($list as $item) {
+        $response = $item['http'];
+
+        // Проверяем, не упал ли HTTP-ответ (или не AbortException ли там)
+        if ($response instanceof \Throwable) {
+          Logger::logAsync('Wrong answer: ' . $response->getMessage());
+          continue;
+        }
+
+        $data = json_decode($response->getContent());
+        if (isset($data->id)) {
+          $ids[] = (int)$data->id;
+        }
+      }
+
+      if (empty($ids)) {
+        return []; // Возвращаем пустой массив, если нечего искать
+      }
+
+      // Делаем один асинхронный запрос к TableB для всей группы
+      $idsString = implode(',', $ids);
+      $tableBRows = $db->queryAsync("SELECT * FROM TableB WHERE id IN ($idsString)")->await();
+
+      return $tableBRows;
+    })
+
+    // Step 4: Агрегируем сумму определенного поля (пробежится по всем строкам из TableB)
+    ->sum(fn($rowB) => $rowB['amount'] ?? 0)
+
+    // Step 5: Записываем финальный результат в TableC
+    ->map(function($totalAmount) use ($db, $task) {
+      Logger::logAsync("Writing final results to TableC. Total: " . $totalAmount);
+
+      $db->queryAsync(
+        "INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())",
+        [$task, $totalAmount]
+      )->await();
+    })
+
+    // Включаем рубильник! Весь конвейер начинает течь
+    ->finish();
+});
+
+// Запуск общего Loop
+Loop::run();

@@ -1,0 +1,29 @@
+<?
+include 'All.Test.php';
+
+// 1. Запускаем первый асинхронный процесс
+Loop::async(function() {
+  echo "[Process 1] Starting. Have a HTTP-request to API...\n";
+  
+  // Магия Fibers: await() ставит этот файбер на паузу, 
+  // пока Loop качает данные из сокета
+//$html = httpGetAsync('http://wowa.su')->await();
+  $html = httpGetAsync('http://127.0.0.1')->await();
+  
+  echo "[Process 1] Sucess! Received chars: " . strlen($html) . "\n";
+});
+
+// 2. Параллельно запускаем второй процесс
+Loop::async(function() {
+  echo "[Process 2] I'm working too! Sleep for 1.5s...\n";
+  
+  // Спим без блокирования всего PHP-скрипта
+  sleepAsync(1.5)->await();
+  
+  echo "[Process 2] Awake in 1.5s!\n";
+});
+
+// 3. Запускаем бесконечный цикл событий, который крутит все эти процессы
+echo "--- Start Event Loop ---\n";
+Loop::run();
+echo "--- Event Loop finished ---\n";

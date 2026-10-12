@@ -1,0 +1,107 @@
+<?
+include 'All.Test.php';
+
+$httpGetAsync_Provider=mock_httpGetAsync(...);
+/**
+ * Мок для httpGetAsync (нужен для полной работы вашего пайплайна)
+ */
+function mock_httpGetAsync(string $url): Promise 
+{
+  $deferred = new Deferred();
+
+  // Имитируем сетевую задержку в 50 мс
+  Loop::delay(0.05, function() use ($deferred, $url) {
+    // Парсим ID из урла, чтобы вернуть его в JSON, будто сервер реально ответил
+    preg_match('/item_(\d+)/', $url, $matches);
+    $id = $matches[1] ?? rand(100, 999);
+
+    $mockResponse = new class($id) {
+      private int $id;
+      public function __construct($id) { $this->id = $id; }
+      public function isSucessfull() { return true; }
+      public function getContent() { return json_encode(['id' => $this->id + 1000]); } // ID в TableB будет +1000
+    };
+
+    $deferred->resolve($mockResponse);
+  });
+
+  return $deferred->promise();
+}
+
+$db = new MockDB();
+
+// 1. Настраиваем TableA: 120 строк. База отдаст этот стрим с задержкой 0.1 сек.
+$tableAData =[];
+for ($i = 1; $i <= 120; $i++) {
+  $tableAData[] = ['id' => $i, 'name' => "Item_$i", 'url' => "https://api.com"];
+}
+$db->setupResponse("SELECT * FROM TableA", delaySeconds: 0.1, data: $tableAData);
+
+// 2. Настраиваем TableB: ответы для первой пачки (ID 1001 - 1100) и второй (ID 1101 - 1120)
+// База будет <думать> над этим запросом 0.2 сек.
+$tableBData =[];
+for ($i = 1; $i <= 120; $i++) {
+  $tableBData[] = ['id' => $i + 1000, 'a_id' => $i, 'amount' => 10]; // Каждая запись добавит 10 в сумму
+}
+$db->setupResponse("SELECT * FROM TableB", delaySeconds: 0.2, data: $tableBData);
+
+// 3. Настраиваем пустой ответ для Insert в TableC
+$db->setupResponse("INSERT INTO TableC", delaySeconds: 0.05, data: []);
+
+
+Loop::async(function() use ($db) {
+  $task = 'MyTask';
+
+  Logger::logAsync("--- START TEST ---");
+
+  Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA WHERE task = ?", [$task]))
+
+    ->map(function($row, $isEnd) {
+      Logger::logAsync('Get TableA.Item.Name: ' . $row['name']);
+      return [
+        'row' => $row,
+        'http' => httpGetAsync($row['url'])
+      ];
+    })
+
+    // Наш группировщик: 100 элементов или 1.0 секунда
+    ->group(count: 100, timeout: 1.0)
+
+    ->map(function($list, $isEnd) use ($db) {
+      Logger::logAsync(">>> The group has been formed! Responses received: " . count($list));
+
+      $ids =[];
+      foreach ($list as $item) {
+        $response = $item['http'];
+        if ($response instanceof \Throwable || !$response->isSucessfull()) {
+          Logger::logAsync('Wrong answer');
+          continue;
+        }
+        $data = json_decode($response->getContent());
+        $ids[] = $data->id;
+      }
+
+      // Тянем данные из TableB для всей группы
+      $idsString = implode(',', $ids);
+      return $db->queryAsync("SELECT * FROM TableB WHERE id IN ($idsString)")->await();
+    })
+
+    // Суммируем поле amount (у нас 120 записей по 10, итого должно быть 1200)
+    ->sum(fn($rowB) => $rowB['amount'] ?? 0)
+
+    // Пишем итог в базу
+    ->map(function($totalAmount) use ($db, $task) {
+      Logger::logAsync("Recording the final result in TableC. Final total: " . $totalAmount);
+      $db->queryAsync(
+        "INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())",
+        [$task, $totalAmount]
+      )->await();
+    })
+
+    ->finish();
+
+  Logger::logAsync("--- END OF TEST ---");
+});
+
+// Запускаем Цикл Событий
+Loop::run();
