@@ -1,0 +1,28 @@
+<?
+include 'All.Test.php';
+
+Loop::async(function() {
+  echo "[Case 1] Do long reqest with timeout 1.5 sec...\n";
+
+  // Имитируем запрос, который длится 3 секунды
+  $requestPromise = sleepAsync(3.0)->then(fn() => "Data from server");
+
+  // Создаем промис-таймаут, который упадет через 1.5 секунды
+  $timeoutPromise = sleepAsync(1.5)->then(function() {
+    throw new \RuntimeException("Time request is out!");
+  });
+
+  try
+  {
+    // Запускаем гонку!
+    $result = Promise::race([$requestPromise, $timeoutPromise])->await();
+    echo "Sucess: " . $result . "\n";
+  }
+  catch (\Throwable $e) 
+  {
+    // Сработает таймаут, так как 1.5с < 3.0с
+    echo "Error race: " . $e->getMessage() . "\n"; 
+  }
+});
+
+Loop::run();

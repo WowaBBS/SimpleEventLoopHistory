@@ -124,6 +124,53 @@ class Pipeline
   }
 
   /**
+   * Терминальный метод. Запускает конвейер и возвращает Promise,
+   * который выполнится по завершении и вернет финальное значение потока.
+   */
+  function collect(): Promise
+  {
+    $deferred = new Deferred();
+    $promise = $deferred->promise();
+
+    Loop::async(function() use ($deferred) {
+      try
+      {
+        $lastValue = null;
+
+        while ($this->generator->valid())
+        {
+          $lastValue = $this->generator->current();
+          $this->generator->next();
+
+          // Даем Event Loop переключать контекст на другие задачи
+          sleepAsync(0)->await();
+        }
+
+        $deferred->resolve($lastValue);
+      }
+      catch (\Throwable $e)
+      {
+        // Любая ошибка в цепочке отклонит итоговый промис
+        $deferred->reject($e);
+      }
+    });
+
+    return $promise;
+  }
+
+  /**
+   * Терминальный метод для простого запуска.
+   * Запускает конвейер <вхолостую> ради выполнения побочных эффектов.
+   * Ничего не возвращает (void).
+   */
+  function run(): void
+  {
+    // Просто вызываем метод сбора, но игнорируем возвращаемый Promise.
+    // Поток все равно запустится асинхронно внутри Loop::async.
+    $this->collect();
+  }
+  
+  /**
    * Вспомогательный метод для глубокого разрешения промисов в массиве
    */
   private function resolveArrayWithPromises(array $array): array

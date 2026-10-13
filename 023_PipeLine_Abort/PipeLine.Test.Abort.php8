@@ -1,0 +1,52 @@
+<?php
+include 'All.Test.php';
+include 'PipeLine.Test.php';
+
+$task = 'MyTask';
+
+Loop::async(function() use ($db, $task) {
+  try
+  {
+    Logger::logAsync("[Pipeline] Launching heavy data pipeline...");
+
+    $promise = Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA"))
+      ->map(function($row) {
+        // Этот лог перестанет выполняться СРАЗУ ЖЕ в момент отмены,
+        // так как map() проверяет сигнал на каждой строке
+        Logger::logAsync('-> Reading from TableA: ' . $row['name']);
+        return ['row' => $row, 'http' => httpGetAsync($row['url'])];
+      })
+      ->group(count: 100, timeout: 1.0)
+      ->map(function($list) use ($db) {
+        Logger::logAsync(">>> group: Пачка из " . count($list) . " элементов сформирована");
+        // (здесь логика сборки ID и запроса к TableB)
+        return $db->queryAsync("SELECT * FROM TableB WHERE id IN (1001,1002)")->await();
+      })
+      ->sum(fn($rowB) => $rowB['amount'] ?? 0)
+      ->collect()
+      ;
+
+    // Имитируем внешнее событие: через 400 миллисекунд отменяем всю операцию.
+    // Наша база TableA выдает 120 строк, и обработка пачек займет больше времени, 
+    // поэтому конвейер прервется где-то посередине.
+    Loop::delay(0.4, function() use (&$promise) {
+      Logger::logAsync("[Controller] Time's up or the session is closed! Canceling the pipeline... ??");
+      $promise->abort("The pipeline was forcibly stopped due to a timeout.");
+    });  
+
+    $totalAmount=$promise->await(); // Ждем результат
+    Logger::logAsync("[Success] Pipeline completed before cancellation! Amount: " . $totalAmount);
+  }
+  catch (AbortException $e)
+  {
+    // Ловим наше кастомное исключение отмены всего пайплайна
+    Logger::logAsync("[Intercepted] Conveyor successfully stopped. Reason: " . $e->getMessage());
+  }
+  catch (\Throwable $e)
+  {
+    Logger::logAsync("[Error] A failure occurred: " . $e->getMessage());
+  }
+});
+
+// Запускаем Цикл Событий
+Loop::run();
