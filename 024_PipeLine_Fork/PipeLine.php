@@ -26,8 +26,12 @@ class Pipeline
     $this->transform     = $transform ? \Closure::fromCallable($transform ) : null;
     $this->onEnd         = $onEnd     ? \Closure::fromCallable($onEnd     ) : null;
 
-    if ($this->parent)
-      $this->parent->addChild($this);
+    $parent?->addChild($this);
+  }
+  
+  function __destruct()
+  {
+    $this->parent?->abortedPipeline($this, 'destructor');
   }
   
   /**
@@ -84,9 +88,8 @@ class Pipeline
       return;
     }
 
-    foreach ($this->children as $childRef)
-      if ($child = $childRef->get()) 
-        $child->processEnd();
+    foreach ($this->children as $child)
+      $child->get()->processEnd();
   }
 
   /**
@@ -100,15 +103,8 @@ class Pipeline
     if ($this->deferred)
       $this->finalValue = $item;
 
-    foreach ($this->children as $key => $childRef)
-      if( $child = $childRef->get() )
-        $child->process($item);
-      else // Ребенок был удален из памяти (GC) или отменен - чистим ссылку
-        unset($this->children[$key]);
-
-    // Если все дети умерли/отписались, и мы не терминальное звено - гасим себя вверх по цепочке
-    if (!$this->children && $this->parent !== null && empty($this->deferred))
-      $this->abortPipeline('Pipeline', $this->getDepth(), ': No children:');
+    foreach ($this->children as $key => $child)
+      $child->get()->process($item);
   }
 
   /**
@@ -120,12 +116,11 @@ class Pipeline
     {
       Logger::error('Pipeline', $this->getDepth(), ' can\'t abort because of ',
         $this->isFinished  ?'Finished'  :(
-        $this->isCancelled ?'Cancelled' :(
-        $this->isProtected ?'Protected' :'Unknown'))
+        $this->isCancelled ?'Cancelled' :'Unknown')
       );
       return;
     }
-
+    
     $this->isCancelled = true;
 
     // Если есть родитель, уведомляем его, что мы отписались
@@ -141,6 +136,8 @@ class Pipeline
     if($this->children) return;
     // Если звено защищено, мы блокируем отмену вверх!
     if($this->isProtected) return;
+    if($this->deferred) return;
+    if($this->isCancelled || $this->isFinished) return;
     
     $this->abortPipeline(...$reason);
   }
@@ -273,7 +270,7 @@ class Pipeline
   {
     // Находим глубину
     $res = 0;
-    for ($root = $this; $root->parent !== null; $root = $root->parent)
+    for ($item = $this->parent; $item; $item = $item->parent)
       $res++;
     return $res;
   }
@@ -282,8 +279,8 @@ class Pipeline
   {
     // Находим корень дерева
     $root = $this;
-    while ($root->parent !== null)
-      $root = $root->parent;
+    while ($parent=$root->parent)
+      $root = $parent;
     return $root;
   }
   

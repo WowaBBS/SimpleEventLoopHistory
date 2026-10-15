@@ -24,8 +24,8 @@ Loop::async(function() use ($db, $task) {
       ->sum(fn($r) => 10)
       ->collect();
 
-    // Отменяем в самом конце через 10 миллисекунд
-    Loop::delay(0.01, function() use ($promise) {
+    // Отменяем в самом конце через 1 секунду
+    Loop::delay(1, function() use ($promise) {
       Logger::logAsync("[System] Invoke \$promise->abort()");
       $promise->abort("The pipeline was forcibly stopped due to a timeout.");
     });
