@@ -2,62 +2,64 @@
 include 'All.Test.php';
 include 'PipeLine.Test.php';
 
-Set_Time_Limit(20);
-Loop::setTimeLimit(15);
+Loop::setTimeLimit(15, 5);
 
 Loop::async(function() use ($db) {
   $task = 'MyTask';
 
-  Logger::logAsync("--- START TEST ---");
-
-  Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA WHERE task = ?", [$task]))
-    ->map(function($row) {
-      Logger::logAsync('Get TableA.Item.Name: ' . $row['name']);
-      return [
-        'row' => $row,
-        'http' => httpGetAsync($row['url'])
-      ];
+  Logger::log("--- START TEST ---");
+  
+  // Создаем стартовый пайплайн
+  $totalAmount = PipelineStart::from($db->queryAsyncStream("SELECT * FROM TableA WHERE task = ?", [$task]))
+    // Разветвление потока на несколько независимых детей
+    ->fork(function(Pipeline $pipeline) {
+      // Ветка 1: Просто пишем в лог параллельно
+      $pipeline->map(fn($row) => Logger::log('Get TableA.Item.Name: ' . $row['name'])->Ret())->run();
     })
+    
+    // Основная ветка конвейера
+    ->map(function($row) {
+      return [$row, httpGetAsync($row['url'])];
+    })
+    // Выделенный оператор для ожидания параллельных HTTP-промисов из массива
     ->resolvePromises()
-    // Наш группировщик: 100 элементов или 1.0 секунда
+
+    // Группировка
     ->group(count: 100, timeout: 1.0)
 
     ->map(function($list) use ($db) {
-      Logger::logAsync(">>> The group has been formed! Responses received: " . count($list));
-
-      $ids =[];
+      Logger::log(">>> The group has been formed! Responses received: " . count($list));
+      $ids = [];
       foreach ($list as $item)
       {
-        $response = $item['http'];
+        $response = $item[1];
         if ($response instanceof \Throwable || !$response->isSucessfull())
         {
-          Logger::logAsync('Wrong answer');
+          Logger::log('Wrong answer');
           continue;
         }
+        
         $data = json_decode($response->getContent());
         $ids[] = $data->id;
       }
-
-      // Тянем данные из TableB для всей группы
-      $idsString = implode(',', $ids);
-      return $db->queryAsync("SELECT * FROM TableB WHERE id IN ($idsString)")->await();
+      // Возвращаем промис запроса к БД
+      return $db->queryAsync('SELECT * FROM TableB WHERE id in (' . implode(',', $ids) . ')');
     })
+    // Разворачиваем полученный из БД массив строк TableB, чтобы sum() считал их поштучно
     ->flatMap()
-
-    // Суммируем поле amount (у нас 120 записей по 10, итого должно быть 1200)
+    
+    // Суммируем строго по контракту атомарных айтемов
     ->sum(fn($rowB) => $rowB['amount'])
 
-    // Пишем итог в базу
-    ->map(function($totalAmount) use ($db, $task) {
-      Logger::logAsync("Recording the final result in TableC. Final total: " . $totalAmount);
-      $db->queryAsync(
-        "INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())",
-        [$task, $totalAmount]
-      )->await();
-    })
-  ->finish();
+    // Запускаем сбор
+    ->collect()
+    ->await();
 
-  Logger::logAsync("--- END OF TEST ---");
+  // Запись финала
+  $db->queryAsync('INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())', [$task, $totalAmount])->await();
+  Logger::log("Recording the final result in TableC. Final total: " , $totalAmount);
+
+  Logger::log("--- END OF TEST ---");
 });
 
 // Запускаем Цикл Событий

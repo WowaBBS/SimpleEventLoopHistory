@@ -4,13 +4,12 @@ include 'PipeLine.Test.php';
 
 $task = 'MyTask';
 
-Set_Time_Limit(3);
-Loop::setTimeLimit(2);
+Loop::setTimeLimit(2, 1);
 
 Loop::async(function() use ($db, $task) {
   try
   {
-    Logger::logAsync("[Pipeline] Launching heavy data pipeline...");
+    Logger::log("[Pipeline] Launching heavy data pipeline...");
 
     $promise = Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA"))
       ->map(function($row) {
@@ -22,7 +21,7 @@ Loop::async(function() use ($db, $task) {
       ->resolvePromises()
       ->group(count: 100, timeout: 1.0)
       ->map(function($list) use ($db) {
-        Logger::logAsync(">>> The group has been formed! Responses received: " . count($list));
+        Logger::log(">>> The group has been formed! Responses received: " . count($list));
         // (здесь логика сборки ID и запроса к TableB)
         return $db->queryAsync("SELECT * FROM TableB WHERE id IN (1001,1002)")->await();
       })
@@ -34,7 +33,7 @@ Loop::async(function() use ($db, $task) {
     // Наша база TableA выдает 120 строк, и обработка пачек займет больше времени, 
     // поэтому конвейер прервется где-то посередине.
     Loop::delay(0.4, function() use (&$promise) {
-      Logger::logAsync("[Controller] Time's up or the session is closed! Canceling the pipeline... ??");
+      Logger::log("[Controller] Time's up or the session is closed! Canceling the pipeline... ??");
       $promise->abort("The pipeline was forcibly stopped due to a timeout.");
     });
 

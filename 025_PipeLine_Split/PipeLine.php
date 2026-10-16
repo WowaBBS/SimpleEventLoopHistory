@@ -143,6 +143,8 @@ abstract class Pipeline
     // Просто прокручиваем генератор до конца, активируя всю цепочку
     $this->collect()->await();
   }
+  
+  function run(): void { $this->collect(); }
 
   /**
    * Терминальный метод. Запускает конвейер и возвращает Promise,

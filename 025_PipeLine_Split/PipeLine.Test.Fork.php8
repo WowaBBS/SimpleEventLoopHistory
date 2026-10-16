@@ -22,7 +22,7 @@ Loop::async(function() use ($db) {
 
   // Через 1 с принудительно отменяем только Потребителя ј1
   Loop::delay(1, function() use ($p1) {
-    Logger::logAsync("?? We are cancelling only Consumer 1.!");
+    Logger::log("?? We are cancelling only Consumer 1.!");
     $p1->abort("We are no longer logging.");
   });
 
@@ -30,11 +30,11 @@ Loop::async(function() use ($db) {
   try
   {
     $total = $p2->await();
-    Logger::logAsync("?? Consumer 2 has successfully completed its task! Amount: ", $total);
+    Logger::log("?? Consumer 2 has successfully completed its task! Amount: ", $total);
   }
   catch (\Throwable $e)
   {
-    Logger::logAsync("Consumer 2 failed: " . $e->getMessage());
+    Logger::log("Consumer 2 failed: " . $e->getMessage());
   }
 });
 

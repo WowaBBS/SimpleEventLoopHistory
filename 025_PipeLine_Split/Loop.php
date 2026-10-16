@@ -1,16 +1,20 @@
 <?
 class Loop
 {
-  private static array $timers = [];
-  private static array $readStreams = [];
-  private static bool $running = false;
-  private static array $signalCallbacks = [];
-  private static bool $signalsInitialized = false;
-  private static float $timeLimit=0;
+  private static array $timers             = [];
+  private static array $readStreams        = [];
+  private static bool  $running            = false;
+  private static array $signalCallbacks    = [];
+  private static bool  $signalsInitialized = false;
+  private static float $timeLimit          =0;
+  private static float $hardTimeLimit      =0;
+  private static float $watchingTimer      =10;
   
-  static function setTimeLimit(float $seconds)
+  static function setTimeLimit(float $seconds, float $hard=10)
   {
     self::$timeLimit = microtime(true) + $seconds;
+    self::$hardTimeLimit = $hard > 0? self::$timeLimit+$hard:0;
+    set_time_limit(ceil(self::$hardTimeLimit));
   }
 
   // Добавить отложенную задачу (таймер)
@@ -123,10 +127,21 @@ class Loop
           ->Debug(new ReflectionClass(self::class)->getStaticProperties());
         break;
       }
-    //TODO: Set_Time_Limit(10);
+      if ($limit = self::$watchingTimer)
+      {
+        $until=self::$hardTimeLimit;
+        if ($until)
+        {
+          $until-=$now;
+          if($limit>$until)
+            $limit=$until;
+        }
+        if ($limit > 0)
+          set_time_limit(ceil($limit));
+      }
 
       // 1. Обрабатываем таймеры, у которых подошло время
-      foreach (self::$timers as $key => $timer) 
+      foreach (self::$timers as $key => $timer)
         if ($now >= $timer['execute_at'])
         {
           unset(self::$timers[$key]);
