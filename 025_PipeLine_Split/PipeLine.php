@@ -32,12 +32,13 @@ abstract class Pipeline
     
     // КРИТИЧЕСКОЕ ПРАВИЛО: Родитель отменяется только если у него
     // НЕ ОСТАЛОСЬ других активных дочерних потребителей!
-    if($this->children    ) return;
+    if ($this->children    ) return;
+    
     // Если звено защищено, мы блокируем отмену вверх!
-    if($this->isProtected ) return;
-    if($this->isEndpoint()) return;
-    if($this->isCancelled ) return;
-    if($this->isEnded     ) return;
+    if ($this->isProtected ) return;
+    if ($this->isEndpoint()) return;
+    if ($this->isCancelled ) return;
+    if ($this->isEnded     ) return;
     
     $this->abortPipeline(...$reason);
   }
@@ -50,7 +51,7 @@ abstract class Pipeline
       $node = $parent;
     
     if (!$node instanceof Pipeline_Start_Generator)
-      throw new \LogicException("Корневой элемент пайплайна должен быть наследником Pipeline_Start_Generator");
+      throw new \LogicException("The root element of a pipeline must be a descendant Pipeline_Start_Generator");
     
     return $node;
   }
@@ -66,7 +67,7 @@ abstract class Pipeline
   {
     if ($this->isCancelled) return;
     if ($this->isEnded) { Logger::error($this->debugName(),'.emitEnd has already finished')->BackTrace(); return; }
-
+    
     foreach ($this->children as $child)
       $child->get()->process($item);
   }
@@ -75,7 +76,9 @@ abstract class Pipeline
   protected function emitEnd(): void
   {
     if ($this->isEnded) { Logger::error($this->debugName(),'.emitEnd has already finished')->BackTrace(); return; }
-    $this->isEnded=true;
+    
+    $this->isEnded = true;
+    
     foreach ($this->children as $child)
       $child->get()->processEnd();
   }
@@ -223,6 +226,7 @@ class Pipeline_Start_Generator extends Pipeline
     }
     catch (\Throwable $e)
     {
+      Logger::Exception($e, 'Pipeline.runLootIteration');
       $this->abortPipeline();
     }
   }
@@ -269,7 +273,7 @@ class Pipeline_Intermediate_Unpack extends Pipeline
   function process(mixed $item): void
   {
     if (!is_iterable($item))
-      throw new \InvalidArgumentException("Оператор unpack ожидает итерируемые данные (array|\Traversable)");
+      throw new \InvalidArgumentException("The unpack operator expects iterable data (array|\Traversable)");
     
     foreach ($item as $subItem)
       $this->emit($subItem);
