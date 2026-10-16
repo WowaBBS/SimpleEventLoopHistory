@@ -1,8 +1,8 @@
 <?
-include '_All.Test.php';
+include '../../_All.Test.php';
 
 // 1. Создадим тестовый относительно "большой" файл (для примера)
-include 'FileLarge.php';
+include '../../FileLarge.php';
 
 // Подготовим тестовые файлы
 file_put_contents('file1.txt', str_repeat("Data 1 ", 10000));
@@ -19,9 +19,9 @@ Loop::async(function() {
   $p2 = FileReaderChunk::readAll($LargeFileName)->abortBy($signal);
   $p3 = FileReaderChunk::readAll($LargeFileName)->abortBy($signal);
   
-  // Имитируем отмену всей группы задач через 15 миллисекунд
-  Loop::delay(0.015, function() use ($controller) {
-    echo "[Event] Cancel the entire group of tasks!\n";
+  // Имитируем отмену всей группы задач через 1 секунду
+  Loop::delay(1, function() use ($controller) {
+    Logger::log('[Event] Cancel the entire group of tasks!');
     $controller->abort("Bulk cancellation by administrator.");
   });
 
@@ -30,11 +30,11 @@ Loop::async(function() {
     try
     {
       $p->await();
-      echo "[$name] Successfully read!\n";
+      Logger::log("[$name] Successfully read!");
     }
     catch (AbortException $e)
     {
-      echo "[$name] Interrupted: " . $e->getMessage() . "\n";
+      Logger::log("[$name] Interrupted: ", $e->getMessage());
     }
   };
 

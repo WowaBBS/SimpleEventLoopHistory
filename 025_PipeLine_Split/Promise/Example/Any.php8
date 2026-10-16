@@ -1,8 +1,8 @@
 <?
-include '_All.Test.php';
+include '../../_All.Test.php';
 
 Loop::async(function() {
-  echo "\n[Case 2] We are querying three servers simultaneously...\n";
+  Logger::log('[Case 2] We are querying three servers simultaneously...');
 
   $promises = [
     // Сервер 1: сразу падает с ошибкой 500
@@ -19,12 +19,11 @@ Loop::async(function() {
   {
     // Ждем первый успешный ответ. Ошибка сервера 1 будет проигнорирована!
     $fastestResponse = Promise::any($promises)->await();
-    echo "Winner any(): " . $fastestResponse . "\n"; // Выведет данные с сервера 3
+    Logger::log('Winner any(): ', $fastestResponse); // Выведет данные с сервера 3
   }
   catch (AggregateException $e)
   {
-    echo "All the servers went down.! Error list:\n";
-    print_r($e->getErrors());
+    Logger::error('All the servers went down.! Error list:')->Debug($e->getErrors());
   }
 });
 

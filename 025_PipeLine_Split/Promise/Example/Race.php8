@@ -1,8 +1,8 @@
 <?
-include '_All.Test.php';
+include '../../_All.Test.php';
 
 Loop::async(function() {
-  echo "[Case 1] Do long reqest with timeout 1.5 sec...\n";
+  Logger::log('[Case 1] Do long reqest with timeout 1.5 sec...');
 
   // Имитируем запрос, который длится 3 секунды
   $requestPromise = sleepAsync(3.0)->then(fn() => "Data from server");
@@ -16,12 +16,12 @@ Loop::async(function() {
   {
     // Запускаем гонку!
     $result = Promise::race([$requestPromise, $timeoutPromise])->await();
-    echo "Sucess: " . $result . "\n";
+    Logger::log('Sucess: ', $result);
   }
-  catch (\Throwable $e) 
+  catch (\Throwable $e)
   {
     // Сработает таймаут, так как 1.5с < 3.0с
-    echo "Error race: " . $e->getMessage() . "\n"; 
+    Logger::error('Error race: ', $e->getMessage()); 
   }
 });
 

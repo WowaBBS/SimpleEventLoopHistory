@@ -1,4 +1,4 @@
-<?
+<?php
 class Deferred
 {
   private Promise $promise;

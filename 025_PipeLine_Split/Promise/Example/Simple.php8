@@ -1,15 +1,15 @@
 <?
-include '_All.Test.php';
+include '../../_All.Test.php';
 
 // Пример интерфейса, к которому стоит стремиться
 $deferred = new Deferred();
 
 $deferred->promise()
   ->then(function($value) {
-    echo "Sucess: " . $value, "\n";
+    Logger::log('Sucess: ', $value);
   })
   ->catch(function(Throwable $e) {
-    echo "Error: " . $e->getMessage(), "\n";
+    Logger::log('Error: ', $e->getMessage());
   });
 
 // Где-то в асинхронном коде:

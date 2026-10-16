@@ -1,5 +1,5 @@
 <?
-include '_All.Test.php';
+include '../../_All.Test.php';
 
 //Чейнинг (Цепочки вызовов)
 $deferred = new Deferred();
@@ -7,6 +7,6 @@ $promise=$deferred->promise();
 $promise
   ->then(fn($dbResult) => $dbResult['Data'])
   ->then(fn($json) => $json['userId'])
-  ->then(fn($id) => print("User ID: $id\n"));
+  ->then(fn($id) => Logger::log('User ID: ', $id)->Ret());
 
 $deferred->resolve(['Data'=>['userId'=>'Wowa']]);
