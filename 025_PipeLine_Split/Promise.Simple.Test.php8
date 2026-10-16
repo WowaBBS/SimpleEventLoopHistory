@@ -1,0 +1,17 @@
+<?
+include 'All.Test.php';
+
+// Пример интерфейса, к которому стоит стремиться
+$deferred = new Deferred();
+
+$deferred->promise()
+  ->then(function($value) {
+    echo "Sucess: " . $value, "\n";
+  })
+  ->catch(function(Throwable $e) {
+    echo "Error: " . $e->getMessage(), "\n";
+  });
+
+// Где-то в асинхронном коде:
+$deferred->resolve("Data received!");
+$deferred->resolve("Data received2!");

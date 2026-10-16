@@ -1,0 +1,64 @@
+<?
+include 'All.Test.php';
+include 'PipeLine.Test.php';
+
+Set_Time_Limit(20);
+Loop::setTimeLimit(15);
+
+Loop::async(function() use ($db) {
+  $task = 'MyTask';
+
+  Logger::logAsync("--- START TEST ---");
+
+  Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA WHERE task = ?", [$task]))
+    ->map(function($row) {
+      Logger::logAsync('Get TableA.Item.Name: ' . $row['name']);
+      return [
+        'row' => $row,
+        'http' => httpGetAsync($row['url'])
+      ];
+    })
+    ->resolvePromises()
+    // Наш группировщик: 100 элементов или 1.0 секунда
+    ->group(count: 100, timeout: 1.0)
+
+    ->map(function($list) use ($db) {
+      Logger::logAsync(">>> The group has been formed! Responses received: " . count($list));
+
+      $ids =[];
+      foreach ($list as $item)
+      {
+        $response = $item['http'];
+        if ($response instanceof \Throwable || !$response->isSucessfull())
+        {
+          Logger::logAsync('Wrong answer');
+          continue;
+        }
+        $data = json_decode($response->getContent());
+        $ids[] = $data->id;
+      }
+
+      // Тянем данные из TableB для всей группы
+      $idsString = implode(',', $ids);
+      return $db->queryAsync("SELECT * FROM TableB WHERE id IN ($idsString)")->await();
+    })
+    ->flatMap()
+
+    // Суммируем поле amount (у нас 120 записей по 10, итого должно быть 1200)
+    ->sum(fn($rowB) => $rowB['amount'])
+
+    // Пишем итог в базу
+    ->map(function($totalAmount) use ($db, $task) {
+      Logger::logAsync("Recording the final result in TableC. Final total: " . $totalAmount);
+      $db->queryAsync(
+        "INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())",
+        [$task, $totalAmount]
+      )->await();
+    })
+  ->finish();
+
+  Logger::logAsync("--- END OF TEST ---");
+});
+
+// Запускаем Цикл Событий
+Loop::run();

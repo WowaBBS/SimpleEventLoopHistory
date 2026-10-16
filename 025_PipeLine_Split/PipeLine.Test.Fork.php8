@@ -1,0 +1,43 @@
+<?
+include 'All.Test.php';
+include 'PipeLine.Test.php';
+
+Loop::async(function() use ($db) {
+  // 1. Создаем корневой пайплайн
+  $rootPipeline = Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA"));
+
+  // 2. Делаем первого потребителя (Потоковое логирование)
+  $pipeline1 = $rootPipeline->map(function($row) {
+    Logger::log("[Consumer 1] Log: " . $row['name']);
+    return $row;
+  });
+
+  // 3. Делаем второго потребителя (Параллельно считает сумму)
+  $pipeline2 = $rootPipeline->map(function($row) {
+    Logger::log("[Consumer 2] Summation: " . $row['name']);
+    return $row;
+  })->sum(fn($r) => 10);
+
+  // Запускаем оба в сбор
+  $p1 = $pipeline1->collect();
+  $p2 = $pipeline2->collect();
+
+  // Через 1 с принудительно отменяем только Потребителя ј1
+  Loop::delay(1, function() use ($p1) {
+    Logger::logAsync("?? We are cancelling only Consumer 1.!");
+    $p1->abort("We are no longer logging.");
+  });
+
+  // Ждем второй пайплайн
+  try
+  {
+    $total = $p2->await();
+    Logger::logAsync("?? Consumer 2 has successfully completed its task! Amount: ", $total);
+  }
+  catch (\Throwable $e)
+  {
+    Logger::logAsync("Consumer 2 failed: " . $e->getMessage());
+  }
+});
+
+Loop::run();

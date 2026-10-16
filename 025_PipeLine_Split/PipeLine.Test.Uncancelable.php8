@@ -1,0 +1,42 @@
+<?
+include 'All.Test.php';
+include 'PipeLine.Test.php';
+
+$task = 'MyTask';
+
+Loop::async(function() use ($db, $task) {
+  try
+  {
+    Logger::logAsync("[Pipeline] Launching heavy data pipeline...");
+
+    $promise = Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA"))
+      ->map(function($row) {
+        // Этот лог перестанет выполняться СРАЗУ ЖЕ в момент отмены,
+        // так как map() проверяет сигнал на каждой строке
+        Logger::logAsync("Critical transaction for: " . $row['name']);
+        return $row;
+      })
+      ->uncancelable() // <--- МАГИЯ: Это звено и всё, что ДО него, защищено от отмены!
+      ->map(function($row) {
+        Logger::logAsync("Optional step (calculation): " . $row['name']);
+        return $row;
+      })
+      ->sum(fn($r) => 10)
+      ->collect();
+
+    // Отменяем в самом конце через 1 секунду
+    Loop::delay(1, function() use ($promise) {
+      Logger::logAsync("[System] Invoke \$promise->abort()");
+      $promise->abort("The pipeline was forcibly stopped due to a timeout.");
+    });
+
+    $promise->await();
+  }
+  catch (AbortException $e)
+  {
+    Logger::logAsync("[Result] The final promise was interrupted.");
+  }
+});
+
+// Запускаем Цикл Событий
+Loop::run();

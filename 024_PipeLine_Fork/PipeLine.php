@@ -62,7 +62,7 @@ class Pipeline
    */
   function process(mixed $item): void
   {
-    if ($this->isCancelled) return;
+    if ($this->isCancelled) { Logger::error('Pipeline', $this->getDepth(),'.process has already canceled')->BackTrace(); return; }
     if ($this->isFinished) { Logger::error('Pipeline', $this->getDepth(),'.process has already finished')->BackTrace(); return; }
 
     // Если у этого звена есть трансформация (map, group, sum) - выполняем её
@@ -75,7 +75,7 @@ class Pipeline
    */
   function processEnd(): void
   {
-    if ($this->isCancelled) return;
+    if ($this->isCancelled) { Logger::error('Pipeline', $this->getDepth(),'.processEnd has already canceled')->BackTrace(); return; }
     if ($this->isFinished) { Logger::error('Pipeline', $this->getDepth(),'.processEnd has already finished')->BackTrace(); return; }
     $this->isFinished=True;
     
@@ -172,7 +172,7 @@ class Pipeline
   }
 
   /**
-   * Группирует элементы по количеству или таймауту в 1 секунду
+   * Группирует элементы по количеству или таймауту
    */
   function group(int $count, float $timeout): self
   {

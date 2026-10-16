@@ -1,0 +1,32 @@
+<?
+include 'All.Test.php';
+
+Loop::async(function() {
+  echo "\n[Case 2] We are querying three servers simultaneously...\n";
+
+  $promises = [
+    // Сервер 1: сразу падает с ошибкой 500
+    'server_1' => sleepAsync(0.2)->then(fn() => throw new \RuntimeException("Server 1: 500 Internal Error")),
+    
+    // Сервер 2: успешный, но медленный (ответит через 2 секунды)
+    'server_2' => sleepAsync(2.0)->then(fn() => "File from server 2 (slowly)"),
+    
+    // Сервер 3: успешный и быстрый (ответит через 0.5 секунды)
+    'server_3' => sleepAsync(0.5)->then(fn() => "File from server 3 (fast)"),
+  ];
+
+  try
+  {
+    // Ждем первый успешный ответ. Ошибка сервера 1 будет проигнорирована!
+    $fastestResponse = Promise::any($promises)->await();
+    echo "Winner any(): " . $fastestResponse . "\n"; // Выведет данные с сервера 3
+  }
+  catch (AggregateException $e)
+  {
+    echo "All the servers went down.! Error list:\n";
+    print_r($e->getErrors());
+  }
+});
+
+// Запускаем наш Event Loop для обработки обоих кейсов
+Loop::run();
