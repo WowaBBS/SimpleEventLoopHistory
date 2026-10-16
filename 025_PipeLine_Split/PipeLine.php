@@ -159,7 +159,7 @@ abstract class Pipeline
   /**
    * Терминальный метод. Запускает весь конвейер и ждет окончания
    */
-  function finish          (                           ): void    { $this->collect()->await(); }
+  function finish          (                           ): void    {        new Pipeline_Final_Finish                 ($this)->wait       (   ); }
   function run             (                           ): void    { $this->collect(); }
 
 //****************************************************************
@@ -449,5 +449,27 @@ class Pipeline_Final_Collect extends Pipeline
   protected function onProcessEnd(): void
   {
     $this->deferred->resolve($this->result);
+  }
+}
+
+/** Конечная точка FINISH (Блокирует файбер до конца) */
+class Pipeline_Final_Finish extends Pipeline
+{
+  private Deferred $deferred;
+
+  function __construct(Pipeline $parent)
+  {
+    parent::__construct($parent);
+    $this->deferred = new Deferred();
+    $this->findRoot()->startIteration();
+  }
+
+  protected function isEndpoint(): bool { return true; }
+
+  function wait(): void { $this->deferred->promise()->await(); }
+
+  function onProcessEnd(): void
+  {
+    $this->deferred->resolve(null);
   }
 }
