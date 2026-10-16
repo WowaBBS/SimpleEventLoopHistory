@@ -358,7 +358,7 @@ class Pipeline_Intermediate_Group extends Pipeline
   private  float  $timeout   ;
   private  array  $chunk     = [];
   private  float  $lastFlush ;
-  private ?string $timerId   = null;
+  private  bool   $timerActive = true;
 
   function __construct(Pipeline $parent, int $count, float $timeout)
   {
@@ -366,7 +366,7 @@ class Pipeline_Intermediate_Group extends Pipeline
     $this->count     = $count;
     $this->timeout   = $timeout;
     $this->lastFlush = microtime(true);
-    $this->startTimer();
+    $this->scheduleTimer();
   }
 
   protected function onProcess(mixed $item): void
@@ -378,7 +378,7 @@ class Pipeline_Intermediate_Group extends Pipeline
 
   protected function onProcessEnd(): void
   {
-    $this->stopTimer(); // Стопаем таймер, чтобы не тикал вхолостую
+    $this->timerActive = false;
     if (!empty($this->chunk))
       $this->flush(); // Сбрасываем остатки
   }
@@ -391,27 +391,26 @@ class Pipeline_Intermediate_Group extends Pipeline
     $this->lastFlush = microtime(true);
   }
 
-  private function startTimer(): void
+  private function scheduleTimer(): void
   {
-    // Так как таймер работает в основном потоке Loop,
-    // мы запускаем проверку таймаута через Loop::async, чтобы внутри можно было авейтить!
-    $this->timerId = uniqid('timer_', true);
+    if (!$this->timerActive || $this->isCancelled || $this->isEnded)
+      return;
 
-    Loop::async($this->timerLoop(...));
-  }
-  
-  private function timerLoop()
-  {
-    while (!$this->isCancelled && $this->timerId !== null)
-    {
-      sleepAsync($this->timeout)->await(); // Здесь await абсолютно легален!
-
-      if (!empty($this->chunk) && (microtime(true) - $this->lastFlush) >= $this->timeout)
-        $this->flush();
-    }
+    // Честный неблокирующий Loop::delay без создания циклов внутри файберов
+    Loop::delay($this->timeout, $this->onTimerTick(...));
   }
 
-  private function stopTimer(): void { $this->timerId = null; }
+  private function onTimerTick(): void
+  {
+    if (!$this->timerActive || $this->isCancelled || $this->isEnded) return;
+
+    if (!empty($this->chunk) && (microtime(true) - $this->lastFlush) >= $this->timeout)
+      $this->flush();
+
+    $this->scheduleTimer(); // Планируем следующий тик
+  }
+
+  private function stopTimer(): void { $this->timerActive = false; }
   protected function onAbort(): void { $this->stopTimer(); }
 }
 
