@@ -73,14 +73,13 @@ abstract class Pipeline
       throw new \LogicException("You cannot call processEnd() on a closed or completed pipeline. (" . static::class . ")");
     
     $this->onProcessEnd();
-    $this->emitEnd();
   }
 
   /** Перегружаемый метод обработки для дочерних классов */
   protected function onProcess(mixed $item): void { $this->emit($item); }
 
   /** Перегружаемый метод завершения для дочерних классов */
-  protected function onProcessEnd(): void { }
+  protected function onProcessEnd(): void { $this->emitEnd(); } // По умолчанию просто пробрасываем сигнал конца дальше
 
   /** Раздача элемента всем детям */
   protected function emit(mixed $item): void
@@ -154,7 +153,7 @@ abstract class Pipeline
    * который выполнится по завершении и вернет финальное значение потока.
    * Принимает опциональный сигнал отмены.
    */
-  function collect         (                           ): Promise { return new Pipeline_Final_Collect                ($this)->getPromise(    ); }
+  function collect         (                           ): Promise { return new Pipeline_Final_Collect                ($this)->getPromise (   ); }
   
   /**
    * Терминальный метод. Запускает весь конвейер и ждет окончания
@@ -222,7 +221,6 @@ class Pipeline_Start_Generator extends Pipeline
     
     $this->isStarted = true;
 
-    // Вместо анонимной функции запускаем именованный метод класса для красивого стек-трейса
     Loop::async($this->runLoopIteration(...));
   }
 
@@ -235,6 +233,7 @@ class Pipeline_Start_Generator extends Pipeline
         if ($this->isCancelled || empty($this->children)) return;
 
         $item = $this->rootGeneratorItemFetch();
+
         $this->emit($item);
         
         sleepAsync(0)->await();
@@ -275,6 +274,7 @@ class Pipeline_Intermediate_Map extends Pipeline
   protected function onProcess(mixed $item): void
   {
     $result = ($this->callback)($item);
+    
     if ($result instanceof Promise)
       $result = $result->await();
     
@@ -348,17 +348,18 @@ class Pipeline_Intermediate_Sum extends Pipeline
   {
     // Выдаёт финальную сумму в поток только при завершении
     $this->emit($this->total);
+    $this->emitEnd();
   }
 }
 
 /** Оператор группировки по времени и количеству GROUP */
 class Pipeline_Intermediate_Group extends Pipeline
 {
-  private  int    $count     ;
-  private  float  $timeout   ;
-  private  array  $chunk     = [];
-  private  float  $lastFlush ;
-  private  bool   $timerActive = true;
+  private int   $count       ;
+  private float $timeout     ;
+  private array $chunk       = [];
+  private float $lastFlush   ;
+  private bool  $timerActive = true;
 
   function __construct(Pipeline $parent, int $count, float $timeout)
   {
@@ -381,6 +382,8 @@ class Pipeline_Intermediate_Group extends Pipeline
     $this->timerActive = false;
     if (!empty($this->chunk))
       $this->flush(); // Сбрасываем остатки
+    
+    $this->emitEnd();
   }
 
   private function flush(): void
@@ -395,8 +398,7 @@ class Pipeline_Intermediate_Group extends Pipeline
   {
     if (!$this->timerActive || $this->isCancelled || $this->isEnded)
       return;
-
-    // Честный неблокирующий Loop::delay без создания циклов внутри файберов
+    
     Loop::delay($this->timeout, $this->onTimerTick(...));
   }
 
@@ -439,16 +441,10 @@ class Pipeline_Final_Collect extends Pipeline
   function getPromise(): Promise { return $this->deferred->promise(); }
 
   // Получает данные ИЗ ЕМИТА предыдущего пайплайна, сохраняя стейт
-  protected function onProcess(mixed $item): void
-  {
-    $this->result = $item;
-  }
+  protected function onProcess(mixed $item): void { $this->result = $item; }
 
   // Завершается строго по событию конца потока
-  protected function onProcessEnd(): void
-  {
-    $this->deferred->resolve($this->result);
-  }
+  protected function onProcessEnd(): void { $this->deferred->resolve($this->result); }
 }
 
 /** Конечная точка FINISH (Блокирует файбер до конца) */
@@ -467,8 +463,9 @@ class Pipeline_Final_Finish extends Pipeline
 
   function wait(): void { $this->deferred->promise()->await(); }
 
-  function onProcessEnd(): void
+  protected function onProcessEnd(): void
   {
     $this->deferred->resolve(null);
+    $this->emitEnd();
   }
 }
