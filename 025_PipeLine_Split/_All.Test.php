@@ -7,4 +7,6 @@ $Loader->AutoDispose();
 $Dir=GetCwd();
 ChDir(__DIR__);
 Include '_All.php';
+include 'Test/_All.php';
+
 ChDir($Dir);

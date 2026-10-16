@@ -2,34 +2,34 @@
 include '_All.Test.php';
 
 // 1. Создадим тестовый относительно "большой" файл (для примера)
-include 'FileLarge.php';
+$largeFileName=LargeFile();
 
 // 2. Процесс 1: Быстрый таймер, который должен тикать без задержек
 Loop::async(function() {
   for ($i = 1; $i <= 5; $i++)
   {
-    echo "[Timer] tick $i\n";
+    Logger::log('[Timer] tick', $i);
     sleepAsync(0.1)->await(); // спим 100мс
   }
 });
 
 // 3. Процесс 2: Асинхронное чтение файла
 Loop::async(function() {
-  echo "[File] Starting async file reading...\n";
+  Logger::log('[File] Starting async file reading...');
   
   $startTime = microtime(true);
   
-  global $LargeFileName;
+  global $largeFileName;
   
   // Вызываем нашу обертку. Код замирает, но Event Loop продолжает крутиться!
-  $content = FileReaderChunk::readAll($LargeFileName, 16384)->await(); 
+  $content = FileReaderChunk::readAll($largeFileName, 16384)->await(); 
   
   $endTime = microtime(true);
   $duration = round(($endTime - $startTime) * 1000, 2);
   
-  echo "[File] Sucessfuly read " . strlen($content) . " bytes for {$duration} ms!\n";
+  Logger::log('[File] Sucessfuly read ', strlen($content), ' bytes for {', $duration, '} ms!');
 });
 
-echo "--- Start Event Loop ---\n";
+Logger::log('--- Start Event Loop ---');
 Loop::run();
-echo "--- Loop is complete ---\n";
+Logger::log('--- Loop is complete ---');

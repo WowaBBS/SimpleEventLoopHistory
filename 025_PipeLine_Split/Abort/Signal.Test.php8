@@ -2,8 +2,7 @@
 include '../_All.Test.php';
 
 // Подготовим файл
-include '../FileLarge.php';
-
+$largeFileName=LargeFile();
 
 Loop::async(function() {
   // 1. Создаем контроллер отмены
@@ -12,33 +11,29 @@ Loop::async(function() {
 
   // 2. Имитируем внешнее событие: через 20 миллисекунд отменяем операцию
   Loop::delay(0.02, function() use ($controller) {
-    echo "[External event] The user pressed the cancel button!\n";
+    Logger::log('[External event] The user pressed the cancel button!');
     $controller->abort("File reading interrupted by the user.");
   });
 
   try
   {
-    echo "[Process] Starting to read the file...\n";
+    Logger::log('[Process] Starting to read the file...');
     
-    global $LargeFileName;
+    global $largeFileName;
     // Передаем сигнал и в саму операцию, и в await
-    $content = FileReaderChunk::readAll($LargeFileName, 4096)->abortBy($signal)->await();
+    $content = FileReaderChunk::readAll($largeFileName, 4096)->abortBy($signal)->await();
     
-    echo "[Process] Bytes successfully read: " . strlen($content) . "\n";
+    Logger::log('[Process] Bytes successfully read: ', strlen($content));
   }
   catch (AbortException $e)
   {
     // Ловим именно наше кастомное исключение отмены
-    echo "[Process] Catched abort: " . $e->getMessage() . "\n";
+    Logger::log('[Process] Catched abort: ', $e->getMessage());
   }
   catch (\Throwable $e)
   {
-    echo "[Process] Some other error: " . $e->getMessage() . "\n";
+    Logger::error('[Process] Some other error: ', $e->getMessage());
   } 
-  finally
-  {
-    //@unlink('$LargeFileName');
-  }
 });
 
 Loop::run();

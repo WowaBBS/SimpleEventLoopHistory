@@ -1,23 +1,20 @@
 <?
 include '../../_All.Test.php';
 
-// 1. Создадим тестовый относительно "большой" файл (для примера)
-include '../../FileLarge.php';
-
 // Подготовим тестовые файлы
-file_put_contents('file1.txt', str_repeat("Data 1 ", 10000));
-file_put_contents('file2.txt', str_repeat("Data 2 ", 10000));
-file_put_contents('file3.txt', str_repeat("Data 3 ", 10000));
+$f1=LargeFile('file1.txt', 'Data 1 ', 100_000);
+$f2=LargeFile('file2.txt', 'Data 2 ', 100_000);
+$f3=LargeFile('file3.txt', 'Data 3 ', 100_000);
 
 Loop::async(function() {
   $controller = new AbortController();
   $signal = $controller->getSignal();
 
-  global $LargeFileName;
+  global $f1, $f2, $f3;
   // Создаем промисы чтения файлов и навешиваем их на один AbortController / AbortSignal
-  $p1 = FileReaderChunk::readAll($LargeFileName)->abortBy($signal);
-  $p2 = FileReaderChunk::readAll($LargeFileName)->abortBy($signal);
-  $p3 = FileReaderChunk::readAll($LargeFileName)->abortBy($signal);
+  $p1 = FileReaderChunk::readAll($f1)->abortBy($signal);
+  $p2 = FileReaderChunk::readAll($f2)->abortBy($signal);
+  $p3 = FileReaderChunk::readAll($f3)->abortBy($signal);
   
   // Имитируем отмену всей группы задач через 1 секунду
   Loop::delay(1, function() use ($controller) {
