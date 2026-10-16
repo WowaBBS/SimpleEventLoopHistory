@@ -1,4 +1,5 @@
 <?
+//Fluent API
 abstract class Pipeline
 {
   protected ?Pipeline $parent = null;
@@ -57,16 +58,35 @@ abstract class Pipeline
   }
 
   /** Прием данных от родителя */
-  abstract function process(mixed $item): void;
+  final function process(mixed $item): void
+  {
+    if ($this->isCancelled || $this->isEnded)
+      throw new \LogicException("You cannot call process() on a closed or completed pipeline. (" . static::class . ")");
+
+    $this->onProcess($item);
+  }
 
   /** Сигнал завершения от родителя */
-  abstract function processEnd(): void;
+  final function processEnd(): void
+  {
+    if ($this->isCancelled || $this->isEnded)
+      throw new \LogicException("You cannot call processEnd() on a closed or completed pipeline. (" . static::class . ")");
+    
+    $this->onProcessEnd();
+    $this->emitEnd();
+  }
+
+  /** Перегружаемый метод обработки для дочерних классов */
+  protected function onProcess(mixed $item): void { $this->emit($item); }
+
+  /** Перегружаемый метод завершения для дочерних классов */
+  protected function onProcessEnd(): void { }
 
   /** Раздача элемента всем детям */
   protected function emit(mixed $item): void
   {
     if ($this->isCancelled) return;
-    if ($this->isEnded) { Logger::error($this->debugName(),'.emitEnd has already finished')->BackTrace(); return; }
+    if ($this->isEnded) { Logger::error($this->debugName(),'.emit has already finished')->BackTrace(); return; }
     
     foreach ($this->children as $child)
       $child->get()->process($item);
@@ -196,9 +216,6 @@ class Pipeline_Start_Generator extends Pipeline
     $this->generator = $generator;
   }
 
-  function process(mixed $item): void {}
-  function processEnd(): void {}
-
   function startIteration(): void
   {
     if ($this->isStarted) return;
@@ -255,7 +272,7 @@ class Pipeline_Intermediate_Map extends Pipeline
     $this->callback = $callback;
   }
 
-  function process(mixed $item): void
+  protected function onProcess(mixed $item): void
   {
     $result = ($this->callback)($item);
     if ($result instanceof Promise)
@@ -263,14 +280,12 @@ class Pipeline_Intermediate_Map extends Pipeline
     
     $this->emit($result);
   }
-
-  function processEnd(): void { $this->emitEnd(); }
 }
 
 /** Оператор одноуровневой развёртки UNPACK */
 class Pipeline_Intermediate_Unpack extends Pipeline
 {
-  function process(mixed $item): void
+  protected function onProcess(mixed $item): void
   {
     if (!is_iterable($item))
       throw new \InvalidArgumentException("The unpack operator expects iterable data (array|\Traversable)");
@@ -278,14 +293,12 @@ class Pipeline_Intermediate_Unpack extends Pipeline
     foreach ($item as $subItem)
       $this->emit($subItem);
   }
-
-  function processEnd(): void { $this->emitEnd(); }
 }
 
 /** Оператор параллельного разрешения промисов */
 class Pipeline_Intermediate_ResolvePromises extends Pipeline
 {
-  function process(mixed $item): void
+  protected function onProcess(mixed $item): void
   {
     if (is_array($item))
     {
@@ -311,8 +324,6 @@ class Pipeline_Intermediate_ResolvePromises extends Pipeline
       $this->emit($item);
     }
   }
-
-  function processEnd(): void { $this->emitEnd(); }
 }
 
 /** Оператор суммирования SUM */
@@ -328,16 +339,15 @@ class Pipeline_Intermediate_Sum extends Pipeline
     $this->selector = $selector;
   }
 
-  function process(mixed $item): void
+  protected function onProcess(mixed $item): void
   {
     $this->total += ($this->selector)($item);
   }
 
-  function processEnd(): void
+  protected function onProcessEnd(): void
   {
     // Выдаёт финальную сумму в поток только при завершении
     $this->emit($this->total);
-    $this->emitEnd();
   }
 }
 
@@ -359,20 +369,18 @@ class Pipeline_Intermediate_Group extends Pipeline
     $this->startTimer();
   }
 
-  function process(mixed $item): void
+  protected function onProcess(mixed $item): void
   {
     $this->chunk[] = $item;
     if (count($this->chunk) >= $this->count)
       $this->flush();
   }
 
-  function processEnd(): void
+  protected function onProcessEnd(): void
   {
     $this->stopTimer(); // Стопаем таймер, чтобы не тикал вхолостую
     if (!empty($this->chunk))
       $this->flush(); // Сбрасываем остатки
-    
-    $this->emitEnd();
   }
 
   private function flush(): void
@@ -432,13 +440,13 @@ class Pipeline_Final_Collect extends Pipeline
   function getPromise(): Promise { return $this->deferred->promise(); }
 
   // Получает данные ИЗ ЕМИТА предыдущего пайплайна, сохраняя стейт
-  function process(mixed $item): void
+  protected function onProcess(mixed $item): void
   {
     $this->result = $item;
   }
 
   // Завершается строго по событию конца потока
-  function processEnd(): void
+  protected function onProcessEnd(): void
   {
     $this->deferred->resolve($this->result);
   }
