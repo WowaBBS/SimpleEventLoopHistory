@@ -13,3 +13,4 @@ include 'AbortController.php';
 include 'Logger.php';
 include 'MockDB.php';
 include 'PipeLine.php';
+include 'PipeLine/_All.php';
