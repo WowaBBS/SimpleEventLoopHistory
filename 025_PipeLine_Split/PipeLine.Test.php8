@@ -10,7 +10,7 @@ Loop::async(function() use ($db) {
   Logger::log("--- START TEST ---");
   
   // Создаем стартовый пайплайн
-  $totalAmount = PipelineStart::from($db->queryAsyncStream("SELECT * FROM TableA WHERE task = ?", [$task]))
+  $totalAmount = Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA WHERE task = ?", [$task]))
     // Разветвление потока на несколько независимых детей
     ->fork(function(Pipeline $pipeline) {
       // Ветка 1: Просто пишем в лог параллельно
@@ -46,7 +46,7 @@ Loop::async(function() use ($db) {
       return $db->queryAsync('SELECT * FROM TableB WHERE id in (' . implode(',', $ids) . ')');
     })
     // Разворачиваем полученный из БД массив строк TableB, чтобы sum() считал их поштучно
-    ->flatMap()
+    ->unpack()
     
     // Суммируем строго по контракту атомарных айтемов
     ->sum(fn($rowB) => $rowB['amount'])

@@ -3,51 +3,144 @@ abstract class Pipeline
 {
   protected ?Pipeline $parent = null;
 
-  /** @var \WeakReference[] Список слабых ссылок на дочерние звенья */
+  /** @var \WeakReference[] Храним слабые ссылки по spl_object_id на дочерние звенья */
   protected array $children = [];
 
   protected bool $isCancelled = false; // Был ли этот конкретный шаг отменен
   protected bool $isProtected = false; // Защищено ли это звено от принудительной отмены (например, для записи критических логов/БД)
-  protected bool $isFinished  = false;
+  protected bool $isEnded     = false;
 
   function __construct(?Pipeline $parent = null)
   {
     $this->parent = $parent;
-    $parent?->addChild($this);
+    $parent?->registerChild($this);
   }
 
+  /** При уничтожении объекта автоматически уведомляем родителя для самоочистки */
   function __destruct()
   {
-    if ($parent=$this->parent)
-      $parent->abortedPipeline($this, 'destructor');
+    $this->parent?->unregisterChild($this, 'destructor');
   }
+  
+  /** Безопасное добавление слабой ссылки на ребенка */
+  protected function registerChild(Pipeline $child): void { $this->children[spl_object_id($child)] = \WeakReference::create($child); }
+
+  /** Родитель сам управляет списком детей и решает, тушить ли себя */
+  function unregisterChild(Pipeline $child, ...$reason): void
+  {
+    unset($this->children[spl_object_id($child)]);
+    
+    // КРИТИЧЕСКОЕ ПРАВИЛО: Родитель отменяется только если у него
+    // НЕ ОСТАЛОСЬ других активных дочерних потребителей!
+    if($this->children    ) return;
+    // Если звено защищено, мы блокируем отмену вверх!
+    if($this->isProtected ) return;
+    if($this->isEndpoint()) return;
+    if($this->isCancelled ) return;
+    if($this->isEnded     ) return;
+    
+    $this->abortPipeline(...$reason);
+  }
+
+  /** Нахождение корня всей цепочки */
+  protected function findRoot(): Pipeline_Start_Generator
+  {
+    $node = $this;
+    while ($parent = $node->parent)
+      $node = $parent;
+    
+    if (!$node instanceof Pipeline_Start_Generator)
+      throw new \LogicException("Корневой элемент пайплайна должен быть наследником Pipeline_Start_Generator");
+    
+    return $node;
+  }
+
+  /** Прием данных от родителя */
+  abstract function process(mixed $item): void;
+
+  /** Сигнал завершения от родителя */
+  abstract function processEnd(): void;
+
+  /** Раздача элемента всем детям */
+  protected function emit(mixed $item): void
+  {
+    if ($this->isCancelled) return;
+    if ($this->isEnded) { Logger::error($this->debugName(),'.emitEnd has already finished')->BackTrace(); return; }
+
+    foreach ($this->children as $child)
+      $child->get()->process($item);
+  }
+
+  /** Сигнал завершения вниз */
+  protected function emitEnd(): void
+  {
+    if ($this->isEnded) { Logger::error($this->debugName(),'.emitEnd has already finished')->BackTrace(); return; }
+    $this->isEnded=true;
+    foreach ($this->children as $child)
+      $child->get()->processEnd();
+  }
+
+  /** Защищает эндпоинты от ложного каскадного авто-удаления */
+  protected function isEndpoint(): bool { return false; }
+
+  /** Метод инициации отмены снизу вверх */
+  function abortPipeline(...$reason): void
+  {
+    if ($this->isCancelled || $this->isEnded)
+    {
+      Logger::error($this->debugName(), ' can\'t abort because of ',
+        $this->isEnded     ?'Ended'  :(
+        $this->isCancelled ?'Cancelled' :'Unknown')
+      );
+      return;
+    }
+    
+    $this->isCancelled = true;
+    $this->onAbort();
+
+    // Если есть родитель, уведомляем его, что мы отписались
+    $this->parent?->unregisterChild($this, ...$reason);
+  }
+  
+  /** Хук для кастомной очистки ресурсов (например, таймеров) */
+  protected function onAbort(): void {}
+
+  // --- ФАБРИКА ОПЕРАТОРОВ (Fluent API) ---
   
   /**
    * Делает текущее звено защищенным от отмены.
    * Всё, что выше него, не прервется, пока данные не пройдут через этот шаг.
    */
-  function uncancelable(): self { $this->isProtected = true; return $this; }
+  function uncancelable    (                           ): self    { $this->isProtected = true; return $this; }
+  function fork            (callable $setup            ): mixed   { return $setup($this)?? $this; }
 
+  /** Создает конвейер из любого итерируемого источника (генератора) */
+  static function from     (\Generator $generator      ): self    { return new Pipeline_Start_Generator              ($generator             ); }
+  /** Преобразует каждый элемент потока. */
+  function map             (callable $callback         ): self    { return new Pipeline_Intermediate_Map             ($this, $callback       ); }
+  /** Группирует элементы по количеству или таймауту */
+  function group           (int $count, float $timeout ): self    { return new Pipeline_Intermediate_Group           ($this, $count, $timeout); }
+  function sum             (callable $selector         ): self    { return new Pipeline_Intermediate_Sum             ($this, $selector       ); }
+  function unpack          (                           ): self    { return new Pipeline_Intermediate_Unpack          ($this                  ); }
+  function resolvePromises (                           ): self    { return new Pipeline_Intermediate_ResolvePromises ($this                  ); }
+
+  // --- ТЕРМИНАЛЬНЫЕ МЕТОДЫ ---
+  
   /**
-   * Безопасное добавление слабой ссылки на ребенка
+   * Терминальный метод. Запускает конвейер и возвращает Promise,
+   * который выполнится по завершении и вернет финальное значение потока.
+   * Принимает опциональный сигнал отмены.
    */
-  private function addChild(Pipeline $child): void
-  {
-    $this->children[spl_object_id($child)] = \WeakReference::create($child);
-  }
+  function collect         (                           ): Promise { return new Pipeline_Final_Collect                ($this)->getPromise(    ); }
+  
+  /**
+   * Терминальный метод. Запускает весь конвейер и ждет окончания
+   */
+  function finish          (                           ): void    { $this->collect()->await(); }
+  function run             (                           ): void    { $this->collect(); }
 
-  /** Нахождение корня всей цепочки */
-  protected function findRoot(): PipelineStart
-  {
-    $node = $this;
-    while ($parent=$node->parent)
-      $node = $parent;
-    
-    if (!$node instanceof PipelineStart)
-      throw new \LogicException("Корневой элемент пайплайна должен быть наследником PipelineStart");
-    
-    return $node;
-  }
+//****************************************************************
+// Debug function
 
   function getDepth()
   {
@@ -57,112 +150,6 @@ abstract class Pipeline
       $res++;
     return $res;
   }
-  
-  /** Главный метод обработки элемента, вызываемый родителем */
-  abstract function process(mixed $item): void;
-
-  /** Сигнал об окончания данных, идущий сверху вниз */
-  abstract function processEnd(): void;
-
-  /** Раздача элемента всем живым детям */
-  protected function emit(mixed $item): void
-  {
-    if ($this->isCancelled) return;
-    if ($this->isFinished) { Logger::error($this->debugName(),'.emitEnd has already finished')->BackTrace(); return; }
-
-    foreach ($this->children as $key => $child)
-      $child->get()->process($item);
-  }
-
-  /** Сигнал завершения вниз */
-  protected function emitEnd(): void
-  {
-    if ($this->isFinished) { Logger::error($this->debugName(),'.emitEnd has already finished')->BackTrace(); return; }
-    $this->isFinished=true;
-    foreach ($this->children as $childRef)
-    {
-      $child = $childRef->get();
-      if ($child)
-        $child->processEnd();
-    }
-  }
-
-  /** Защищает эндпоинты от ложного каскадного авто-удаления */
-  protected function isEndpoint(): bool { return false; }
-
-  /** Метод инициации отмены снизу вверх */
-  function abortPipeline(...$reason): void
-  {
-    if ($this->isCancelled || $this->isFinished)
-    {
-      Logger::error($this->debugName(), ' can\'t abort because of ',
-        $this->isFinished  ?'Finished'  :(
-        $this->isCancelled ?'Cancelled' :'Unknown')
-      );
-      return;
-    }
-    
-    $this->isCancelled = true;
-
-    $this->onAbort();
-
-    // Если есть родитель, уведомляем его, что мы отписались
-    $this->parent?->abortedPipeline($this, ...$reason);
-  }
-  
-  function abortedPipeline($child, ...$reason)
-  {
-    unset($this->children[spl_object_id($child)]);
-    
-    // КРИТИЧЕСКОЕ ПРАВИЛО: Родитель отменяется только если у него
-    // НЕ ОСТАЛОСЬ других активных дочерних потребителей!
-    if($this->children) return;
-    // Если звено защищено, мы блокируем отмену вверх!
-    if($this->isProtected) return;
-    if($this->isEndpoint()) return;
-    if($this->isCancelled || $this->isFinished) return;
-    
-    $this->abortPipeline(...$reason);
-  }
-
-  /** Хук для кастомной очистки ресурсов (например, таймеров) */
-  protected function onAbort(): void {}
-
-  /**
-   * Создает конвейер из любого итерируемого источника (генератора)
-   */
-  static function from(\Generator $generator): PipelineStart { return new PipelineStart($generator); }
-
-  // --- ТЕРМИНАЛЬНЫЕ МЕТОДЫ ---
-
-  /**
-   * Терминальный метод. Запускает весь конвейер и ждет окончания
-   */
-  function finish(): void
-  {
-    // Просто прокручиваем генератор до конца, активируя всю цепочку
-    $this->collect()->await();
-  }
-  
-  function run(): void { $this->collect(); }
-
-  /**
-   * Терминальный метод. Запускает конвейер и возвращает Promise,
-   * который выполнится по завершении и вернет финальное значение потока.
-   * Принимает опциональный сигнал отмены.
-   */
-  function collect(): Promise { $endpoint = new CollectFinal($this); return $endpoint->getPromise(); }
-
-  // --- ФАБРИКА ОПЕРАТОРОВ (Fluent API) ---
-
-  /** Преобразует каждый элемент потока. */
-  function map(callable $callback): MapIntermediate { return new MapIntermediate($this, $callback); }
-  /** Группирует элементы по количеству или таймауту */
-  function group(int $count, float $timeout): GroupIntermediate { return new GroupIntermediate($this, $count, $timeout); }
-  function sum(callable $selector): SumIntermediate { return new SumIntermediate($this, $selector); }
-  function flatMap(): FlatMapIntermediate { return new FlatMapIntermediate($this); }
-  function resolvePromises(): ResolvePromisesIntermediate { return new ResolvePromisesIntermediate($this); }
-  function fork(callable $setup):mixed { return $setup($this)?? $this; }
   
   function debugName()
   {
@@ -189,9 +176,13 @@ abstract class Pipeline
         $i++;
     array_push($res, '[', $i, '].');
   }
+//****************************************************************
 }
 
-class PipelineStart extends Pipeline
+//****************************************************************
+// Стартовые операторы (Pipeline_Start_*)
+
+class Pipeline_Start_Generator extends Pipeline
 {
   private \Generator $generator;
   private bool $isStarted = false;
@@ -208,30 +199,34 @@ class PipelineStart extends Pipeline
   function startIteration(): void
   {
     if ($this->isStarted) return;
+    
     $this->isStarted = true;
 
-    Loop::async(function() {
-      try
-      {
-        while ($this->generator->valid())
-        {
-          if ($this->isCancelled || empty($this->children))
-            return;
-
-          $item = $this->rootGeneratorItemFetch();
-          $this->emit($item);
-
-          sleepAsync(0)->await();
-        }
-        $this->emitEnd();
-      }
-      catch (\Throwable $e)
-      {
-        $this->abortPipeline();
-      }
-    });
+    // Вместо анонимной функции запускаем именованный метод класса для красивого стек-трейса
+    Loop::async($this->runLoopIteration(...));
   }
 
+  private function runLoopIteration(): void
+  {
+    try
+    {
+      while ($this->generator->valid())
+      {
+        if ($this->isCancelled || empty($this->children)) return;
+
+        $item = $this->rootGeneratorItemFetch();
+        $this->emit($item);
+        
+        sleepAsync(0)->await();
+      }
+      $this->emitEnd();
+    }
+    catch (\Throwable $e)
+    {
+      $this->abortPipeline();
+    }
+  }
+  
   /** Вынесено в метод для читаемости стек-трейса */
   private function rootGeneratorItemFetch(): mixed
   {
@@ -241,8 +236,11 @@ class PipelineStart extends Pipeline
   }
 }
 
+//****************************************************************
+// Промежуточные операторы (Pipeline_Intermediate_*)
+
 /** Оператор трансформации MAP */
-class MapIntermediate extends Pipeline
+class Pipeline_Intermediate_Map extends Pipeline
 {
   /** @var callable */
   private $callback;
@@ -253,7 +251,7 @@ class MapIntermediate extends Pipeline
     $this->callback = $callback;
   }
 
-  function process(mixed $item): void 
+  function process(mixed $item): void
   {
     $result = ($this->callback)($item);
     if ($result instanceof Promise)
@@ -265,25 +263,23 @@ class MapIntermediate extends Pipeline
   function processEnd(): void { $this->emitEnd(); }
 }
 
-/** Оператор развёртки массивов FLATMAP */
-class FlatMapIntermediate extends Pipeline
+/** Оператор одноуровневой развёртки UNPACK */
+class Pipeline_Intermediate_Unpack extends Pipeline
 {
   function process(mixed $item): void
   {
-    if (is_iterable($item))
-    {
-      foreach ($item as $subItem)
-        $this->emit($subItem);
-    }
-    else
-      $this->emit($item);
+    if (!is_iterable($item))
+      throw new \InvalidArgumentException("Оператор unpack ожидает итерируемые данные (array|\Traversable)");
+    
+    foreach ($item as $subItem)
+      $this->emit($subItem);
   }
 
   function processEnd(): void { $this->emitEnd(); }
 }
 
 /** Оператор параллельного разрешения промисов */
-class ResolvePromisesIntermediate extends Pipeline
+class Pipeline_Intermediate_ResolvePromises extends Pipeline
 {
   function process(mixed $item): void
   {
@@ -293,13 +289,14 @@ class ResolvePromisesIntermediate extends Pipeline
       foreach ($item as $key => $value)
         if ($value instanceof Promise)
           $promises[$key] = $value;
-
+      
       if (!empty($promises))
       {
         $settled = Promise::allSettled($promises)->await();
         foreach ($settled as $key => $res)
           $item[$key] = $res['status'] === 'fulfilled' ? $res['value'] : $res['reason'];
       }
+      
       $this->emit($item);
     }
     else
@@ -315,7 +312,7 @@ class ResolvePromisesIntermediate extends Pipeline
 }
 
 /** Оператор суммирования SUM */
-class SumIntermediate extends Pipeline
+class Pipeline_Intermediate_Sum extends Pipeline
 {
   /** @var callable */
   private $selector;
@@ -329,32 +326,31 @@ class SumIntermediate extends Pipeline
 
   function process(mixed $item): void
   {
-    // Больше не обрабатывает массивы скрыто, работает строго по контракту
     $this->total += ($this->selector)($item);
   }
 
   function processEnd(): void
   {
     // Выдаёт финальную сумму в поток только при завершении
-    $this->emit($item ?? $this->total);
+    $this->emit($this->total);
     $this->emitEnd();
   }
 }
 
-/** Оператор группировки по батчам GROUP */
-class GroupIntermediate extends Pipeline
+/** Оператор группировки по времени и количеству GROUP */
+class Pipeline_Intermediate_Group extends Pipeline
 {
-  private int $count;
-  private float $timeout;
-  private array $chunk = [];
-  private float $lastFlush;
-  private ?string $timerId = null;
+  private  int    $count     ;
+  private  float  $timeout   ;
+  private  array  $chunk     = [];
+  private  float  $lastFlush ;
+  private ?string $timerId   = null;
 
   function __construct(Pipeline $parent, int $count, float $timeout)
   {
     parent::__construct($parent);
-    $this->count = $count;
-    $this->timeout = $timeout;
+    $this->count     = $count;
+    $this->timeout   = $timeout;
     $this->lastFlush = microtime(true);
     $this->startTimer();
   }
@@ -389,22 +385,29 @@ class GroupIntermediate extends Pipeline
     // мы запускаем проверку таймаута через Loop::async, чтобы внутри можно было авейтить!
     $this->timerId = uniqid('timer_', true);
 
-    Loop::async(function() {
-      while (!$this->isCancelled && $this->timerId !== null)
-      {
-        sleepAsync($this->timeout)->await(); // Здесь await абсолютно легален!
+    Loop::async($this->timerLoop(...));
+  }
+  
+  private function timerLoop()
+  {
+    while (!$this->isCancelled && $this->timerId !== null)
+    {
+      sleepAsync($this->timeout)->await(); // Здесь await абсолютно легален!
 
-        if (!empty($this->chunk) && (microtime(true) - $this->lastFlush) >= $this->timeout)
-          $this->flush();
-      }
-    });
+      if (!empty($this->chunk) && (microtime(true) - $this->lastFlush) >= $this->timeout)
+        $this->flush();
+    }
   }
 
   private function stopTimer(): void { $this->timerId = null; }
   protected function onAbort(): void { $this->stopTimer(); }
 }
 
-class CollectFinal extends Pipeline
+//****************************************************************
+// Финальные операторы (Pipeline_Final_*)
+
+/** Конечная точка COLLECT (Возвращает Promise) */
+class Pipeline_Final_Collect extends Pipeline
 {
   private Deferred $deferred; // Ссылка на финальный Deferred
   private mixed $result = null;
@@ -413,7 +416,7 @@ class CollectFinal extends Pipeline
   {
     parent::__construct($parent);
     $this->deferred = new Deferred();
-    $this->deferred->promise()->setOnCancel(fn() => $this->abortPipeline());
+    $this->deferred->promise()->setOnCancel($this->abortPipeline(...));
 
     // Запускаем итерацию в корне
     $this->findRoot()->startIteration();
@@ -421,12 +424,18 @@ class CollectFinal extends Pipeline
 
   // Защищает эндпоинт от ложного авто-удаления
   protected function isEndpoint(): bool { return true; }
-
+  
   function getPromise(): Promise { return $this->deferred->promise(); }
 
   // Получает данные ИЗ ЕМИТА предыдущего пайплайна, сохраняя стейт
-  function process(mixed $item): void { $this->result = $item; }
+  function process(mixed $item): void
+  {
+    $this->result = $item;
+  }
 
   // Завершается строго по событию конца потока
-  function processEnd(): void { $this->deferred->resolve($this->result); }
+  function processEnd(): void
+  {
+    $this->deferred->resolve($this->result);
+  }
 }
