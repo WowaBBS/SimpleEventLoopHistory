@@ -1,5 +1,5 @@
 <?
-include 'All.Test.php';
+include '_All.Test.php';
 
 Loop::async(function() {
   echo "[Process] We are launching a survey of independent services....\n";

@@ -1,5 +1,5 @@
 <?
-include 'All.Test.php';
+include '_All.Test.php';
 
 // Подписываемся на сигнал SIGINT (Константа 2 - это универсальный SIGINT)
 Loop::addSignal(2, function() {

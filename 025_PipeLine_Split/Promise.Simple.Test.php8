@@ -1,5 +1,5 @@
 <?
-include 'All.Test.php';
+include '_All.Test.php';
 
 // Пример интерфейса, к которому стоит стремиться
 $deferred = new Deferred();

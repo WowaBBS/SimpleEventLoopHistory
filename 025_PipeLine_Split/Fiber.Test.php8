@@ -1,5 +1,5 @@
 <?
-include 'All.Test.php';
+include '_All.Test.php';
 
 $TickEvents=[];
 

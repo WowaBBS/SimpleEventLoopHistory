@@ -1,6 +1,6 @@
 <?
-include 'All.Test.php';
-include 'PipeLine.Test.php';
+include '../../_All.Test.php';
+include 'Data.php';
 
 $task = 'MyTask';
 
