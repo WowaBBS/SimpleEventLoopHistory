@@ -1,8 +1,8 @@
 <?
-include '_All.Test.php';
+include '../_All.Test.php';
 
 // Ïמהדמעמגטל פאיכ
-include 'FileLarge.php';
+include '../FileLarge.php';
 
 
 Loop::async(function() {
