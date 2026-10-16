@@ -160,7 +160,7 @@ abstract class Pipeline
   function sum(callable $selector): SumIntermediate { return new SumIntermediate($this, $selector); }
   function flatMap(): FlatMapIntermediate { return new FlatMapIntermediate($this); }
   function resolvePromises(): ResolvePromisesIntermediate { return new ResolvePromisesIntermediate($this); }
-  function fork(callable $setup): self { $setup($this); return $this; }
+  function fork(callable $setup):mixed { return $setup($this)?? $this; }
   
   function debugName()
   {

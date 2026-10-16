@@ -4,23 +4,21 @@ include 'PipeLine.Test.php';
 
 Loop::async(function() use ($db) {
   // 1. Создаем корневой пайплайн
-  $rootPipeline = Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA"));
-
-  // 2. Делаем первого потребителя (Потоковое логирование)
-  $pipeline1 = $rootPipeline->map(function($row) {
-    Logger::log("[Consumer 1] Log: " . $row['name']);
-    return $row;
-  });
-
-  // 3. Делаем второго потребителя (Параллельно считает сумму)
-  $pipeline2 = $rootPipeline->map(function($row) {
-    Logger::log("[Consumer 2] Summation: " . $row['name']);
-    return $row;
-  })->sum(fn($r) => 10);
-
-  // Запускаем оба в сбор
-  $p1 = $pipeline1->collect();
-  $p2 = $pipeline2->collect();
+  [$p1, $p2]=Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA"))
+    ->fork(function($Pipeline){
+      return [
+        // 2. Делаем первого потребителя (Потоковое логирование)
+        $Pipeline->map(function($row) {
+          Logger::log("[Consumer 1] Log: " . $row['name']);
+          return $row;
+        })->collect(),
+        // 3. Делаем второго потребителя (Параллельно считает сумму)
+        $Pipeline->map(function($row) {
+          Logger::log("[Consumer 2] Summation: " . $row['name']);
+          return $row;
+        })->sum(fn($r) => 10)->collect(),
+      ]; // Запускаем оба в сбор
+    });
 
   // Через 1 с принудительно отменяем только Потребителя ј1
   Loop::delay(1, function() use ($p1) {
