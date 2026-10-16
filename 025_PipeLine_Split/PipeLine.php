@@ -137,14 +137,14 @@ abstract class Pipeline
   function fork            (callable $setup            ): mixed   { return $setup($this)?? $this; }
 
   /** Создает конвейер из любого итерируемого источника (генератора) */
-  static function from     (\Generator $generator      ): self    { return new Pipeline_Start_Generator              ($generator             ); }
+  static function from     (\Generator $generator      ): self    { return new Pipeline_Start_Generator    ($generator             ); }
   /** Преобразует каждый элемент потока. */
-  function map             (callable $callback         ): self    { return new Pipeline_Intermediate_Map             ($this, $callback       ); }
+  function map             (callable $callback         ): self    { return new Pipeline_Op_Map             ($this, $callback       ); }
   /** Группирует элементы по количеству или таймауту */
-  function group           (int $count, float $timeout ): self    { return new Pipeline_Intermediate_Group           ($this, $count, $timeout); }
-  function sum             (callable $selector         ): self    { return new Pipeline_Intermediate_Sum             ($this, $selector       ); }
-  function unpack          (                           ): self    { return new Pipeline_Intermediate_Unpack          ($this                  ); }
-  function resolvePromises (                           ): self    { return new Pipeline_Intermediate_ResolvePromises ($this                  ); }
+  function group           (int $count, float $timeout ): self    { return new Pipeline_Op_Group           ($this, $count, $timeout); }
+  function sum             (callable $selector         ): self    { return new Pipeline_Op_Sum             ($this, $selector       ); }
+  function unpack          (                           ): self    { return new Pipeline_Op_Unpack          ($this                  ); }
+  function resolvePromises (                           ): self    { return new Pipeline_Op_ResolvePromises ($this                  ); }
 
   // --- ТЕРМИНАЛЬНЫЕ МЕТОДЫ ---
   
@@ -153,12 +153,12 @@ abstract class Pipeline
    * который выполнится по завершении и вернет финальное значение потока.
    * Принимает опциональный сигнал отмены.
    */
-  function collect         (                           ): Promise { return new Pipeline_Final_Collect                ($this)->getPromise (   ); }
+  function collect         (                           ): Promise { return new Pipeline_Final_Collect      ($this)->getPromise (   ); }
   
   /**
    * Терминальный метод. Запускает весь конвейер и ждет окончания
    */
-  function finish          (                           ): void    {        new Pipeline_Final_Finish                 ($this)->wait       (   ); }
+  function finish          (                           ): void    {        new Pipeline_Final_Finish       ($this)->wait       (   ); }
   function run             (                           ): void    { $this->collect(); }
 
 //****************************************************************
@@ -257,10 +257,10 @@ class Pipeline_Start_Generator extends Pipeline
 }
 
 //****************************************************************
-// Промежуточные операторы (Pipeline_Intermediate_*)
+// Промежуточные операторы (Pipeline_Op_*)
 
 /** Оператор трансформации MAP */
-class Pipeline_Intermediate_Map extends Pipeline
+class Pipeline_Op_Map extends Pipeline
 {
   /** @var callable */
   private $callback;
@@ -283,7 +283,7 @@ class Pipeline_Intermediate_Map extends Pipeline
 }
 
 /** Оператор одноуровневой развёртки UNPACK */
-class Pipeline_Intermediate_Unpack extends Pipeline
+class Pipeline_Op_Unpack extends Pipeline
 {
   protected function onProcess(mixed $item): void
   {
@@ -296,7 +296,7 @@ class Pipeline_Intermediate_Unpack extends Pipeline
 }
 
 /** Оператор параллельного разрешения промисов */
-class Pipeline_Intermediate_ResolvePromises extends Pipeline
+class Pipeline_Op_ResolvePromises extends Pipeline
 {
   protected function onProcess(mixed $item): void
   {
@@ -327,7 +327,7 @@ class Pipeline_Intermediate_ResolvePromises extends Pipeline
 }
 
 /** Оператор суммирования SUM */
-class Pipeline_Intermediate_Sum extends Pipeline
+class Pipeline_Op_Sum extends Pipeline
 {
   /** @var callable */
   private $selector;
@@ -353,7 +353,7 @@ class Pipeline_Intermediate_Sum extends Pipeline
 }
 
 /** Оператор группировки по времени и количеству GROUP */
-class Pipeline_Intermediate_Group extends Pipeline
+class Pipeline_Op_Group extends Pipeline
 {
   private int   $count       ;
   private float $timeout     ;
