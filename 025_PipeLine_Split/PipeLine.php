@@ -140,11 +140,13 @@ abstract class Pipeline
   static function from     (\Generator $generator      ): self    { return new Pipeline_Start_Generator    ($generator             ); }
   /** Преобразует каждый элемент потока. */
   function map             (callable $callback         ): self    { return new Pipeline_Op_Map             ($this, $callback       ); }
+  function filter          (callable $predicate        ): self    { return new Pipeline_Op_Filter          ($this, $predicate      ); }
   /** Группирует элементы по количеству или таймауту */
   function group           (int $count, float $timeout ): self    { return new Pipeline_Op_Group           ($this, $count, $timeout); }
   function sum             (callable $selector         ): self    { return new Pipeline_Op_Sum             ($this, $selector       ); }
   function unpack          (                           ): self    { return new Pipeline_Op_Unpack          ($this                  ); }
   function resolvePromises (                           ): self    { return new Pipeline_Op_ResolvePromises ($this                  ); }
+//function flatMap         (callable $callback         ): self    { return $this->map($callback)->unpack(); }
 
   // --- ТЕРМИНАЛЬНЫЕ МЕТОДЫ ---
   
