@@ -141,12 +141,18 @@ abstract class Pipeline
   /** Преобразует каждый элемент потока. */
   function map             (callable $callback         ): self    { return new Pipeline_Op_Map             ($this, $callback       ); }
   function filter          (callable $predicate        ): self    { return new Pipeline_Op_Filter          ($this, $predicate      ); }
+  function slice           (int $skip, ?int $limit=null): self    { return new Pipeline_Op_Slice           ($this, $skip, $limit   ); }
   /** Группирует элементы по количеству или таймауту */
   function group           (int $count, float $timeout ): self    { return new Pipeline_Op_Group           ($this, $count, $timeout); }
   function sum             (callable $selector         ): self    { return new Pipeline_Op_Sum             ($this, $selector       ); }
   function unpack          (                           ): self    { return new Pipeline_Op_Unpack          ($this                  ); }
   function resolvePromises (                           ): self    { return new Pipeline_Op_ResolvePromises ($this                  ); }
-//function flatMap         (callable $callback         ): self    { return $this->map($callback)->unpack(); }
+
+// Capability
+  function skip            (int $skip                  ): self    { return $this->slice($skip); }
+  function limit           (int $limit                 ): self    { return $this->slice(0, $limit); }
+  function take            (int $limit                 ): self    { return $this->limit($limit); } // C# (LINQ), RxJS.
+  function flatMap         (callable $callback         ): self    { return $this->map($callback)->unpack(); }
 
   // --- ТЕРМИНАЛЬНЫЕ МЕТОДЫ ---
   

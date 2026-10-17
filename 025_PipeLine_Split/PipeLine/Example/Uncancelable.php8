@@ -2,9 +2,7 @@
 include '../../_All.Test.php';
 include 'Data.php';
 
-$task = 'MyTask';
-
-Loop::async(function() use ($db, $task) {
+Loop::async(function() use ($db) {
   try
   {
     Logger::log("[Pipeline] Launching heavy data pipeline...");

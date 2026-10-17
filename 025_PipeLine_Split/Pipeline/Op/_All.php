@@ -8,3 +8,4 @@ include 'Unpack.php'          ;
 include 'ResolvePromises.php' ;
 include 'Sum.php'             ;
 include 'Group.php'           ;
+include 'Slice.php'           ;
