@@ -1,5 +1,4 @@
 <?
-include 'State.php';
 include 'Promise/_All.php';
 include 'Promise.php';
 include 'Loop.php';
