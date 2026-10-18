@@ -63,7 +63,22 @@ abstract class Pipeline
     if ($this->isCancelled || $this->isEnded)
       throw new \LogicException("You cannot call process() on a closed or completed pipeline. (" . static::class . ")");
 
-    $this->onProcess($item);
+    // Если до этого шага долетела ошибка, и текущий класс - НЕ оператор Catch, 
+    // мы просто транзитом пушим её дальше вниз по трубе
+    if ($item instanceof Pipeline_Error_Box && !($this instanceof Pipeline_Op_Catch))
+    {
+      $this->emit($item);
+      return;
+    }
+    
+    try
+    {
+      $this->onProcess($item);
+    }
+    catch (\Throwable $e)
+    {// Перехватываем ошибку шага и пускаем её вниз по конвейеру в коробке!
+      $this->emit(new Pipeline_Error_Box($e));
+    }
   }
 
   /** Сигнал завершения от родителя */
@@ -147,6 +162,7 @@ abstract class Pipeline
   function sum          (callable $selector         ): self    { return new Pipeline_Op_Sum          ($this, $selector       ); }
   function unpack       (                           ): self    { return new Pipeline_Op_Unpack       ($this                  ); }
   function concurrent   (int $max=1, int $depth=2   ): self    { return new Pipeline_Op_Concurrent   ($this, $max, $depth    ); }
+  function catch        (callable $errorHandler     ): self    { return new Pipeline_Op_Catch        ($this, $errorHandler   ); }
 
 // Capability
   function skip         (int $skip                  ): self    { return $this->slice($skip); }

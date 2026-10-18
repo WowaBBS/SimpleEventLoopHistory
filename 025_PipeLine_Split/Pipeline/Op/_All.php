@@ -9,3 +9,4 @@ include 'Concurrent.php' ;
 include 'Sum.php'        ;
 include 'Group.php'      ;
 include 'Slice.php'      ;
+include 'Catch.php'      ;
