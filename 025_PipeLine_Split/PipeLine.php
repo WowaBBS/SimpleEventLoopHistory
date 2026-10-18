@@ -56,37 +56,32 @@ abstract class Pipeline
     
     return $node;
   }
+  
+  protected function checkProcess()
+  {
+    if ($this->isCancelled || $this->isEnded)
+      throw new \LogicException("You cannot call process() on a closed or completed pipeline. (" . static::class . ")");
+  }
 
   /** Прием данных от родителя */
   final function process(mixed $item): void
   {
-    if ($this->isCancelled || $this->isEnded)
-      throw new \LogicException("You cannot call process() on a closed or completed pipeline. (" . static::class . ")");
+    $this->checkProcess();
 
-    // Если до этого шага долетела ошибка, и текущий класс - НЕ оператор Catch, 
-    // мы просто транзитом пушим её дальше вниз по трубе
-    if ($item instanceof Pipeline_Error_Box && !($this instanceof Pipeline_Op_Catch))
-    {
-      $this->emit($item);
-      return;
-    }
-    
     try
     {
       $this->onProcess($item);
     }
     catch (\Throwable $e)
-    {// Перехватываем ошибку шага и пускаем её вниз по конвейеру в коробке!
-      $this->emit(new Pipeline_Error_Box($e));
+    { // Если в процессе обработки элемента произошла ошибка - перенаправляем её в поток ошибок
+      $this->emitError($e); //it was processError
     }
   }
 
   /** Сигнал завершения от родителя */
   final function processEnd(): void
   {
-    if ($this->isCancelled || $this->isEnded)
-      throw new \LogicException("You cannot call processEnd() on a closed or completed pipeline. (" . static::class . ")");
-    
+    $this->checkProcess();
     $this->onProcessEnd();
   }
 
@@ -116,6 +111,40 @@ abstract class Pipeline
     foreach ($this->children as $child)
       $child->get()->processEnd();
   }
+  
+// --- ЗЕРКАЛЬНЫЙ ПОТОК ОШИБОК ---
+
+  public final function processError(\Throwable $exception): void
+  {
+    if ($this->isCancelled || $this->isEnded) return; // Ошибки на закрытом пайплайне игнорируем
+    
+    try
+    {
+      $this->onProcessError($exception);
+    }
+    catch (\Throwable $fatal)
+    {
+      // Если в процессе обработки самой ошибки (например, внутри catch()) 
+      // бахнуло новое исключение - пушим дальше уже его
+      $this->emitError($fatal);
+    }
+  }
+
+  /**
+   * По умолчанию любой промежуточный оператор просто транзитом 
+   * пробрасывает ошибку дальше по конвейеру вниз
+   */
+  protected function onProcessError(\Throwable $exception): void { $this->emitError($exception); }
+
+  protected function emitError(\Throwable $exception): void
+  {
+    if ($this->isCancelled) return;
+
+    foreach ($this->children as $child)
+      $child->get()->processError($exception);
+  }  
+
+// ---  ---
 
   /** Защищает эндпоинты от ложного каскадного авто-удаления */
   protected function isEndpoint(): bool { return false; }
@@ -159,7 +188,7 @@ abstract class Pipeline
   function slice        (int $skip, ?int $limit=null): self    { return new Pipeline_Op_Slice        ($this, $skip, $limit   ); }
   /** Группирует элементы по количеству или таймауту */
   function group        (int $count, float $timeout ): self    { return new Pipeline_Op_Group        ($this, $count, $timeout); }
-  function sum          (callable $selector         ): self    { return new Pipeline_Op_Sum          ($this, $selector       ); }
+  function sum          (?callable $selector=null   ): self    { return new Pipeline_Op_Sum          ($this, $selector       ); }
   function unpack       (                           ): self    { return new Pipeline_Op_Unpack       ($this                  ); }
   function concurrent   (int $max=1, int $depth=2   ): self    { return new Pipeline_Op_Concurrent   ($this, $max, $depth    ); }
   function catch        (callable $errorHandler     ): self    { return new Pipeline_Op_Catch        ($this, $errorHandler   ); }

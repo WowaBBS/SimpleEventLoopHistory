@@ -53,7 +53,8 @@ class Pipeline_Op_Concurrent extends Pipeline
     if ($errors)
     {
       //TODO: abort other promices
-      return true; //TODO: Error_Box
+      $this->emitError(new AggregateException('Concurrent operator catched errors', $errors));
+      return true;
     }
     
     if (!$promises)
@@ -78,12 +79,11 @@ class Pipeline_Op_Concurrent extends Pipeline
         else
           $this->deferred = new Deferred();
     
-      //TODO: all, abort other promices
-      $promise = Promise::allSettled($promises);
+      $promise = Promise::all($promises);
       $id = spl_object_id($promise);
       $this->active[$id] = $item;
       
-      // TODO: $promise->then($fn=fn()=>$this->handler($promise), $fn)?
+      // TODO: $promise->then(fn()=>$this->handler($promise), fn()=>$this->emitError($promise->await()))?
       $promise->addHandler($this, $this->handler(...));
       if (count($this->active) < $this->concurrency)
         return true;
@@ -111,13 +111,15 @@ class Pipeline_Op_Concurrent extends Pipeline
     $id = spl_object_id($promise);
     $active = $this->active[$id];
     unset($this->active[$id]);
-
-    if (!$this->addActive($active, true))
-      Logger::error('Concurrent::promise:')->debug($promise);
-    
     $deferred = $this->deferred; $this->deferred = null;
     if ($this->active)
       $this->deferred = new Deferred();
+    
+    if ($promise->isFulfilled())
+      $this->addActive($active, true); // TODO: $this->emit($promise->await());
+    else
+      $this->emitError($promise->await());
+    
     $deferred->resolve();
   }
 }

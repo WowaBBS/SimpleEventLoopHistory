@@ -35,12 +35,12 @@ class Promise
   {
     if ($this->state !== State::PENDING) return;
 
-    $reason = $reason ?? "Промис был отменен.";
+    $reason = $reason ?? 'Promise aborted.';
     $exception = new AbortException($reason);
 
     // 1. Вызываем очистку системных ресурсов, если она была задана
     if ($this->onCancel)
-        ($this->onCancel)($exception);
+      ($this->onCancel)($exception);
 
     // 2. Отклоняем промис с ошибкой AbortException
     $this->reject($exception);
@@ -102,7 +102,7 @@ class Promise
   {
     $nextDeferred = new Deferred();
 
-    $this->addHandler($this, fn($promise)=>$promise->Handler($nextDeferred, $onFulfilled, $onRejected));
+    $this->addHandler($nextDeferred, fn($promise)=>$promise->Handler($nextDeferred, $onFulfilled, $onRejected));
 
     if($this->state !== State::PENDING)
       $this->executeHandlers();
@@ -115,7 +115,7 @@ class Promise
     return $this->then(null, $onRejected);
   }
 
-  function Resolve(mixed $value): void
+  function resolve(mixed $value): void
   {
     if($this->state!==State::PENDING) return;
     $this->state = State::FULFILLED;
@@ -123,7 +123,7 @@ class Promise
     $this->executeHandlers();
   }
 
-  function Reject(mixed $reason): void
+  function reject(mixed $reason): void
   {
     if($this->state !== State::PENDING) return;
     $this->state = State::REJECTED;
@@ -131,7 +131,7 @@ class Promise
     $this->executeHandlers();
   }
 
-  function ExecuteHandlers(): void
+  function executeHandlers(): void
   {
     foreach($this->handlers as $handler)
       $handler($this);
@@ -148,7 +148,7 @@ class Promise
     // Проверяем, находимся ли мы внутри файбера
     $currentFiber = \Fiber::getCurrent();
     if($currentFiber === null) //TODO: It's possible
-      throw new \LogicException("Метод await() можно вызывать только внутри Fiber.");
+      throw new \LogicException("The await() method can only be called within a Fiber.");
 
     // Подписываемся на этот же промис
     $this->then(
@@ -251,7 +251,7 @@ class Promise
 
     if (empty($promises))
     {
-      $deferred->reject(new \RuntimeException("Promise::any() передан пустой массив."));
+      $deferred->reject(new \RuntimeException("An empty array was passed to Promise::any()"));
       return $deferred->promise();
     }
 
@@ -280,7 +280,7 @@ class Promise
 
           // Если упали ВСЕ промисы, отклоняем общий промис
           if ($remaining === 0)
-            $deferred->reject(new AggregateException("Все промисы были отклонены", $errors));
+            $deferred->reject(new AggregateException("All promises were rejected", $errors));
         }
       );
     }

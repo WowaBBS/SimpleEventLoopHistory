@@ -10,29 +10,16 @@ class Pipeline_Op_Catch extends Pipeline
     $this->errorHandler = $errorHandler;
   }
 
-  protected function onProcess(mixed $item): void
+  protected function onProcessError(\Throwable $exception): void
   {
-    // Если прилетел обычный успешный элемент, просто шлем его дальше
-    if (!($item instanceof Pipeline_Error_Box))
-    {
-      $this->emit($item);
-      return;
-    }
+    $fallback = ($this->errorHandler)($exception);
 
-    // Если прилетела коробка с ошибкой - вскрываем!
-    try
-    {
-      $exception = $item->getException();
-      $fallback = ($this->errorHandler)($exception);
+    // Если обработчик вернул альтернативное значение (заглушку),
+    // мы возвращаем его в поток УСПЕШНЫХ данных через emit()!
+    if ($fallback !== null)
+      $this->emit($fallback);
 
-      // Если обработчик вернул какое-то дефолтное значение-заглушку,
-      // пускаем её вместо ошибки дальше по трубе
-      if ($fallback !== null)
-        $this->emit($fallback);
-    }
-    catch (\Throwable $fatal)
-    { // Если сам обработчик ошибок упал, пускаем новую ошибку вниз
-      $this->emit(new Pipeline_Error_Box($fatal));
-    }
+    // Если обработчик вернул null, значит ошибка просто поглощена (залогирована),
+    // и мы никуда ничего не шлем для этого элемента.
   }
 }

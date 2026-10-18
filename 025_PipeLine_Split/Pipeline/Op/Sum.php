@@ -3,18 +3,18 @@
 class Pipeline_Op_Sum extends Pipeline
 {
   /** @var callable */
-  private $selector;
   private float $total = 0;
 
-  function __construct(Pipeline $parent, callable $selector)
+  function __construct(Pipeline $parent, ?callable $selector)
   {
+    if($selector)
+      $parent=$parent->map($selector);
     parent::__construct($parent);
-    $this->selector = $selector;
   }
 
   protected function onProcess(mixed $item): void
   {
-    $this->total += ($this->selector)($item);
+    $this->total += $item; 
   }
 
   protected function onProcessEnd(): void

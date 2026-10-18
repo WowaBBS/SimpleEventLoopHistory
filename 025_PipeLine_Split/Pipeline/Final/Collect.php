@@ -23,6 +23,16 @@ class Pipeline_Final_Collect extends Pipeline
   // Получает данные ИЗ ЕМИТА предыдущего пайплайна, сохраняя стейт
   protected function onProcess(mixed $item): void { $this->result = $item; }
 
+  /**
+   * Если ошибка дотекла до самого конца пайплайна и её никто не перехватил,
+   * мы отклоняем (reject) результирующий Promise.
+   */
+  protected function onProcessError(\Throwable $exception): void
+  {
+    $this->deferred->reject($exception);
+    $this->abortPipeline(); // Гасим пайплайн
+  }
+  
   // Завершается строго по событию конца потока
   protected function onProcessEnd(): void { $this->deferred->resolve($this->result); }
 }

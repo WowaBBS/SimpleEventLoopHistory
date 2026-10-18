@@ -10,7 +10,7 @@ Loop::async(function() use ($db) {
   Logger::log("--- START TEST ---");
   
   // Создаем стартовый пайплайн
-  $totalAmount = Pipeline::from($db->queryAsyncStream("SELECT * FROM TableA WHERE task = ?", [$task]))
+  $totalAmount = Pipeline::from($db->queryAsyncStream('SELECT * FROM TableA WHERE task = ?', [$task]))
     // Разветвление потока на несколько независимых детей
     ->fork(function(Pipeline $pipeline) {
       // Ветка 1: Просто пишем в лог параллельно
@@ -19,10 +19,17 @@ Loop::async(function() use ($db) {
     
     // Основная ветка конвейера
     ->map(function($row) {
+      if ($row['id'] === 13)
+        throw new \RuntimeException('Unlucky record ID!');
       return [$row, httpGetAsync($row['url'])];
     })
     // Выделенный оператор для ожидания параллельных HTTP-промисов из массива
     ->concurrent(10)
+    // Ловим ошибки, возникшие выше (в map или сети HTTP)
+    ->catch(function(\Throwable $e) {
+      Logger::log("[Error] Item skipped due to an error: " . $e->getMessage());
+      // Возвращаем null, чтобы просто пропустить этот элемент и не прерывать сумму
+    })
 
     // Группировка
     ->group(count: 100, timeout: 1)
