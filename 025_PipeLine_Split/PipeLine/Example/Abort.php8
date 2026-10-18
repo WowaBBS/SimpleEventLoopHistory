@@ -18,7 +18,7 @@ Loop::async(function() use ($db, $task) {
         Logger::log('-> Reading from TableA: ' . $row['name']);
         return ['row' => $row, 'http' => httpGetAsync($row['url'])];
       })
-      ->resolvePromises()
+      ->concurrent()
       ->group(count: 100, timeout: 1.0)
       ->map(function($list) use ($db) {
         Logger::log(">>> The group has been formed! Responses received: " . count($list));

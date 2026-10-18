@@ -1,5 +1,18 @@
 <?
 $httpGetAsync_Provider=mock_httpGetAsync(...);
+
+class Http_Mock_Response
+{
+  private string $content ;
+  
+  public function __construct($content) 
+  {
+    $this->content = $content ;
+  }
+  
+  public function isSucessfull() { return true; }
+  public function getContent() { return $this->content; }
+};
 /**
  * Мок для httpGetAsync (нужен для полной работы вашего пайплайна)
  */
@@ -13,12 +26,7 @@ function mock_httpGetAsync(string $url): Promise
     preg_match('/item_(\d+)/', $url, $matches);
     $id = $matches[1] ?? rand(100, 999);
 
-    $mockResponse = new class($id) {
-      private int $id;
-      public function __construct($id) { $this->id = $id; }
-      public function isSucessfull() { return true; }
-      public function getContent() { return json_encode(['id' => $this->id + 1000]); } // ID в TableB будет +1000
-    };
+    $mockResponse = new Http_Mock_Response(json_encode(['id' => $id + 1000])); // ID в TableB будет +1000
 
     $deferred->resolve($mockResponse);
   });

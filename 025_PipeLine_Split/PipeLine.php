@@ -133,26 +133,26 @@ abstract class Pipeline
    * Делает текущее звено защищенным от отмены.
    * Всё, что выше него, не прервется, пока данные не пройдут через этот шаг.
    */
-  function uncancelable    (                           ): self    { $this->isProtected = true; return $this; }
-  function fork            (callable $setup            ): mixed   { return $setup($this)?? $this; }
+  function uncancelable (                           ): self    { $this->isProtected = true; return $this; }
+  function fork         (callable $setup            ): mixed   { return $setup($this)?? $this; }
 
   /** Создает конвейер из любого итерируемого источника (генератора) */
-  static function from     (\Generator $generator      ): self    { return new Pipeline_Start_Generator    ($generator             ); }
+  static function from  (\Generator $generator      ): self    { return new Pipeline_Start_Generator ($generator             ); }
   /** Преобразует каждый элемент потока. */
-  function map             (callable $callback         ): self    { return new Pipeline_Op_Map             ($this, $callback       ); }
-  function filter          (callable $predicate        ): self    { return new Pipeline_Op_Filter          ($this, $predicate      ); }
-  function slice           (int $skip, ?int $limit=null): self    { return new Pipeline_Op_Slice           ($this, $skip, $limit   ); }
+  function map          (callable $callback         ): self    { return new Pipeline_Op_Map          ($this, $callback       ); }
+  function filter       (callable $predicate        ): self    { return new Pipeline_Op_Filter       ($this, $predicate      ); }
+  function slice        (int $skip, ?int $limit=null): self    { return new Pipeline_Op_Slice        ($this, $skip, $limit   ); }
   /** Группирует элементы по количеству или таймауту */
-  function group           (int $count, float $timeout ): self    { return new Pipeline_Op_Group           ($this, $count, $timeout); }
-  function sum             (callable $selector         ): self    { return new Pipeline_Op_Sum             ($this, $selector       ); }
-  function unpack          (                           ): self    { return new Pipeline_Op_Unpack          ($this                  ); }
-  function resolvePromises (                           ): self    { return new Pipeline_Op_ResolvePromises ($this                  ); }
+  function group        (int $count, float $timeout ): self    { return new Pipeline_Op_Group        ($this, $count, $timeout); }
+  function sum          (callable $selector         ): self    { return new Pipeline_Op_Sum          ($this, $selector       ); }
+  function unpack       (                           ): self    { return new Pipeline_Op_Unpack       ($this                  ); }
+  function concurrent   (int $max=1, int $depth=2   ): self    { return new Pipeline_Op_Concurrent   ($this, $max, $depth    ); }
 
 // Capability
-  function skip            (int $skip                  ): self    { return $this->slice($skip); }
-  function limit           (int $limit                 ): self    { return $this->slice(0, $limit); }
-  function take            (int $limit                 ): self    { return $this->limit($limit); } // C# (LINQ), RxJS.
-  function flatMap         (callable $callback         ): self    { return $this->map($callback)->unpack(); }
+  function skip         (int $skip                  ): self    { return $this->slice($skip); }
+  function limit        (int $limit                 ): self    { return $this->slice(0, $limit); }
+  function take         (int $limit                 ): self    { return $this->limit($limit); } // C# (LINQ), RxJS.
+  function flatMap      (callable $callback         ): self    { return $this->map($callback)->unpack(); }
 
   // --- ТЕРМИНАЛЬНЫЕ МЕТОДЫ ---
   

@@ -7,6 +7,6 @@ class Deferred
 
   function Promise(): Promise { return $this->promise; }
 
-  function Resolve(mixed $value): void { $this->promise->resolve($value); }
-  function Reject(mixed $reason): void { $this->promise->reject($reason); }
+  function resolve(mixed $value=null): void { $this->promise->resolve($value); }
+  function reject(mixed $reason): void { $this->promise->reject($reason); }
 }

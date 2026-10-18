@@ -10,6 +10,10 @@ class Promise
   private array $handlers = [];
   // Колбэк, который вызывается при отмене для очистки ресурсов (стримов, таймеров)
   private ?\Closure $onCancel = null; 
+  
+  function isPending   () { return $this->state === State::PENDING   ; }
+  function isFulfilled () { return $this->state === State::FULFILLED ; }
+  function isRejected  () { return $this->state === State::REJECTED  ; }
 
   // Метод для установки колбэка очистки (используется внутри AsyncFile/httpGet)
   function setOnCancel(callable $callback): self
@@ -83,13 +87,22 @@ class Promise
       $nextDeferred->reject($e);
     }
   }
+  
+  function addHandler(object $objectKey, callable $handler)
+  {
+    $this->handlers[spl_object_id($objectKey)] = $handler;
+  }
 
+  function removeHandler(object $objectKey)
+  {
+    unset($this->handlers[spl_object_id($objectKey)]);
+  }
+  
   function then(?callable $onFulfilled = null, ?callable $onRejected = null): self
   {
     $nextDeferred = new Deferred();
 
-    $this->handlers[] = fn()=>$this->Handler($nextDeferred, $onFulfilled, $onRejected);
-    //Function () Use ($nextDeferred, $onFulfilled, $onRejected) { $this->Handler($nextDeferred, $onFulfilled, $onRejected); };
+    $this->addHandler($this, fn($promise)=>$promise->Handler($nextDeferred, $onFulfilled, $onRejected));
 
     if($this->state !== State::PENDING)
       $this->executeHandlers();
@@ -121,7 +134,7 @@ class Promise
   function ExecuteHandlers(): void
   {
     foreach($this->handlers as $handler)
-      $handler();
+      $handler($this);
     
     $this->handlers = [];
   }

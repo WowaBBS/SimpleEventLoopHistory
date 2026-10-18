@@ -22,10 +22,10 @@ Loop::async(function() use ($db) {
       return [$row, httpGetAsync($row['url'])];
     })
     // Выделенный оператор для ожидания параллельных HTTP-промисов из массива
-    ->resolvePromises()
+    ->concurrent(10)
 
     // Группировка
-    ->group(count: 100, timeout: 1.0)
+    ->group(count: 100, timeout: 1)
 
     ->map(function($list) use ($db) {
       Logger::log(">>> The group has been formed! Responses received: " . count($list));
@@ -43,8 +43,10 @@ Loop::async(function() use ($db) {
         $ids[] = $data->id;
       }
       // Возвращаем промис запроса к БД
+      // TODO: sequence
       return $db->queryAsync('SELECT * FROM TableB WHERE id in (' . implode(',', $ids) . ')');
     })
+    ->concurrent(5) // TODO: sequence instead
     // Разворачиваем полученный из БД массив строк TableB, чтобы sum() считал их поштучно
     ->unpack()
     

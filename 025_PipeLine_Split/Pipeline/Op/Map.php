@@ -15,9 +15,6 @@ class Pipeline_Op_Map extends Pipeline
   {
     $result = ($this->callback)($item);
     
-    if ($result instanceof Promise)
-      $result = $result->await();
-    
     $this->emit($result);
   }
 }
