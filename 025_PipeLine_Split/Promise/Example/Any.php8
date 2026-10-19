@@ -23,7 +23,7 @@ Loop::async(function() {
   }
   catch (AggregateException $e)
   {
-    Logger::error('All the servers went down.! Error list:')->Debug($e->getErrors());
+    Logger::error('All the servers went down.! Error list:')->Dump($e->getErrors());
   }
 });
 

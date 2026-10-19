@@ -59,7 +59,7 @@ class FileReaderExec
     global $Loader;
     $Stat=FStat($stream);
     $Meta=stream_get_meta_data($stream);
-    $Loader->Log('Debug', 'OnRead ',$Idx,' Stat.Size=', $Stat['size'], ' Meta.unread_bytes=', $Meta['unread_bytes']);//->Debug($Stat);
+    $Loader->Log('Debug', 'OnRead ',$Idx,' Stat.Size=', $Stat['size'], ' Meta.unread_bytes=', $Meta['unread_bytes']);//->Dump($Stat);
   //Echo '{Debug} OnRead Stat.Size=', $Stat['size'], "\n";
     $chunkSize=Min($Stat['size'], 108192);
     $Len=0;

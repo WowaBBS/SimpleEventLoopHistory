@@ -79,7 +79,7 @@ function tableB_select($data, $sql, $params)
     if (in_array($rec['id'], $ids, true))
       $result[] = $rec;
 //Logger::debug('tableB_select: data.len=', count($data), ', ids.len=', count($ids), ', result.len=', count($result))
-//  ->debug(['ids'=>$ids, 'data'=>$data]);
+//  ->dump(['ids'=>$ids, 'data'=>$data]);
   return $result;
 }
 

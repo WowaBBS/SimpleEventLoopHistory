@@ -67,7 +67,7 @@ class Pipeline_Op_Concurrent extends Pipeline
     if ($resolved)
     {
       Logger::error('We have unresolved promises:') //Logic error
-        ->debug($promises);
+        ->dump($promises);
       return false;
     }
     
