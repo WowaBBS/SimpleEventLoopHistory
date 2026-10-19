@@ -23,7 +23,7 @@ Loop::async(function() use ($db, $task) {
       ->map(function($list) use ($db) {
         Logger::log(">>> The group has been formed! Responses received: " . count($list));
         // (здесь логика сборки ID и запроса к TableB)
-        return $db->queryAsync("SELECT * FROM TableB WHERE id IN (1001,1002)")->await();
+        return $db->queryAsync("SELECT * FROM TableB WHERE id IN (?)", [[1001,1002]])->await();
       })
       ->sum(fn($rowB) => $rowB['amount'] ?? 0)
       ->collect()

@@ -118,7 +118,7 @@ class Pipeline_Op_Concurrent extends Pipeline
     if ($promise->isFulfilled())
       $this->addActive($active, true); // TODO: $this->emit($promise->await());
     else
-      $this->emitError($promise->await());
+      $this->emitError($promise->getThrowable());
     
     $deferred->resolve();
   }

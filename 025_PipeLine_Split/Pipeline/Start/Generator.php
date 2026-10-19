@@ -31,7 +31,7 @@ class Pipeline_Start_Generator extends Pipeline
 
         $this->emit($item);
         
-        sleepAsync(0)->await();
+      //sleepAsync(0)->await();
       }
       $this->emitEnd();
     }

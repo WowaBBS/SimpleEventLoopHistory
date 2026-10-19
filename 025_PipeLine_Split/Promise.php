@@ -115,7 +115,7 @@ class Promise
     return $this->then(null, $onRejected);
   }
 
-  function resolve(mixed $value): void
+  function resolve(mixed $value=null): void
   {
     if($this->state!==State::PENDING) return;
     $this->state = State::FULFILLED;
@@ -138,12 +138,14 @@ class Promise
     
     $this->handlers = [];
   }
+  
+  function getThrowable():?\Throwable { return $this->isRejected()? ($this->value instanceof \Throwable ?$this->value:new \RuntimeException((string)$this->value)):Null; }
 
   function await(): mixed
   {
     // Если промис уже выполнен, сразу возвращаем значение (без паузы)
     if ($this->state === State::FULFILLED) return $this->value;
-    if ($this->state === State::REJECTED) throw $this->value instanceof \Throwable ?$this->value:new \RuntimeException((string)$this->value);
+    if ($this->state === State::REJECTED) throw $this->getThrowable();
 
     // Проверяем, находимся ли мы внутри файбера
     $currentFiber = \Fiber::getCurrent();

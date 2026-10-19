@@ -10,12 +10,13 @@ class MockDB
    * Позволяет настроить: при совпадении подстроки в SQL, через сколько секунд
    * и какие данные нужно вернуть.
    */
-  function setupResponse(string $sqlPattern, float $delaySeconds, array $data): void
+  function setupResponse(string $sqlPattern, float $delaySeconds, array $data, ?callable $callback=null): void
   {
     $this->delayedResponses[] = [
-      'pattern' => $sqlPattern,
-      'delay' => $delaySeconds,
-      'data' => $data
+      'pattern'  => $sqlPattern   ,
+      'delay'    => $delaySeconds ,
+      'data'     => $data         ,
+      'callback' => $callback     ,
     ];
   }
 
@@ -25,10 +26,10 @@ class MockDB
   function queryAsync(string $sql, array $params =[]): Promise
   {
     $deferred = new Deferred();
-    $match = $this->findMatch($sql);
+    $match = $this->internalQuery($sql, $params);
 
     Loop::delay($match['delay'], function() use ($deferred, $match) {
-      $deferred->resolve($match['data']);
+      $deferred->resolve($match['result']);
     });
 
     return $deferred->promise();
@@ -39,17 +40,27 @@ class MockDB
    */
   function queryAsyncStream(string $sql, array $params =[]): \Generator
   {
-    $match = $this->findMatch($sql);
+    $match = $this->internalQuery($sql, $params);
 
     // Имитируем, что база думала перед тем, как отдать первую строку
     sleepAsync($match['delay'])->await();
 
-    foreach ($match['data'] as $row)
+    foreach ($match['result'] as $row)
     {
       // Имитируем микро-задержку выдачи каждой строки из курсора
       sleepAsync(0.002)->await();
       yield $row;
     }
+  }
+  
+  private function internalQuery(string $sql, array $params =[])
+  {
+    $match = $this->findMatch($sql);
+    $result = $match['data'];
+    if ($callback = $match['callback'])
+      $result = $callback($result, $sql, $params);
+    $match['result'] = $result;
+    return $match;
   }
 
   private function findMatch(string $sql): array

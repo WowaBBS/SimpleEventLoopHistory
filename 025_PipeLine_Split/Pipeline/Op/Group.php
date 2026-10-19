@@ -35,10 +35,11 @@ class Pipeline_Op_Group extends Pipeline
 
   private function flush(): void
   {
-    if (empty($this->chunk)) return;
-    $this->emit($this->chunk);
+    $chunk=$this->chunk;
+    if (empty($chunk)) return;
     $this->chunk = [];
     $this->lastFlush = microtime(true);
+    $this->emit($chunk);
   }
 
   private function scheduleTimer(): void

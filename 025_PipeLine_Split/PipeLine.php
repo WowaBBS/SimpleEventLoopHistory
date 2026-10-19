@@ -57,16 +57,41 @@ abstract class Pipeline
     return $node;
   }
   
-  protected function checkProcess()
+  protected final function checkProcess()
   {
     if ($this->isCancelled || $this->isEnded)
       throw new \LogicException("You cannot call process() on a closed or completed pipeline. (" . static::class . ")");
+  }
+  
+  protected bool|Promise $protectProcess=false;
+
+  /** Does not allow to start process due started another process */
+  protected final function beginProcess()
+  {
+    $this->checkProcess();
+    $protect=$this->protectProcess;
+    if(!$protect)
+    {
+      $this->protectProcess=true;
+      return;
+    }
+    $protect=new Promise();
+    $this->protectProcess=$protect;
+    $protect->await();
+  }
+  
+  protected final function endProcess()
+  {
+    $protect=$this->protectProcess;
+    $this->protectProcess=false;
+    if($protect instanceof Promise)
+      $protect->resolve();
   }
 
   /** Прием данных от родителя */
   final function process(mixed $item): void
   {
-    $this->checkProcess();
+    $this->beginProcess();
 
     try
     {
@@ -76,13 +101,25 @@ abstract class Pipeline
     { // Если в процессе обработки элемента произошла ошибка - перенаправляем её в поток ошибок
       $this->emitError($e); //it was processError
     }
+    finally
+    {
+      $this->endProcess();
+    }
   }
 
   /** Сигнал завершения от родителя */
   final function processEnd(): void
   {
-    $this->checkProcess();
-    $this->onProcessEnd();
+    $this->beginProcess();
+    try
+    {
+      $this->onProcessEnd();
+    }
+  //catch (\Throwable $e) { $this->emitError($e); } //TODO:
+    finally
+    {
+      $this->endProcess();
+    }
   }
 
   /** Перегружаемый метод обработки для дочерних классов */
@@ -92,41 +129,54 @@ abstract class Pipeline
   protected function onProcessEnd(): void { $this->emitEnd(); } // По умолчанию просто пробрасываем сигнал конца дальше
 
   /** Раздача элемента всем детям */
-  protected function emit(mixed $item): void
+  protected final function emit(mixed $item): void
   {
     if ($this->isCancelled) return;
     if ($this->isEnded) { Logger::error($this->debugName(),'.emit has already finished')->BackTrace(); return; }
     
     foreach ($this->children as $child)
-      $child->get()->process($item);
+      try
+      {
+        $child->get()->process($item);
+      }
+      catch(\Throwable $e)
+      {
+        Logger::error('Unexpected exception')->exception($e);
+      }
   }
 
   /** Сигнал завершения вниз */
-  protected function emitEnd(): void
+  protected final function emitEnd(): void
   {
     if ($this->isEnded) { Logger::error($this->debugName(),'.emitEnd has already finished')->BackTrace(); return; }
     
     $this->isEnded = true;
     
     foreach ($this->children as $child)
-      $child->get()->processEnd();
+      try
+      {
+        $child->get()->processEnd();
+      }
+      catch(\Throwable $e)
+      {
+        Logger::error('Unexpected exception')->exception($e);
+      }
   }
   
 // --- ЗЕРКАЛЬНЫЙ ПОТОК ОШИБОК ---
 
   public final function processError(\Throwable $exception): void
   {
-    if ($this->isCancelled || $this->isEnded) return; // Ошибки на закрытом пайплайне игнорируем
-    
+  //if ($this->isCancelled || $this->isEnded) return; // Ошибки на закрытом пайплайне игнорируем    
+    $this->beginProcess();
     try
     {
       $this->onProcessError($exception);
     }
-    catch (\Throwable $fatal)
+  //catch (\Throwable $e) { $this->emitError($e); } //TODO:
+    finally
     {
-      // Если в процессе обработки самой ошибки (например, внутри catch()) 
-      // бахнуло новое исключение - пушим дальше уже его
-      $this->emitError($fatal);
+      $this->endProcess();
     }
   }
 
@@ -136,12 +186,19 @@ abstract class Pipeline
    */
   protected function onProcessError(\Throwable $exception): void { $this->emitError($exception); }
 
-  protected function emitError(\Throwable $exception): void
+  protected final function emitError(\Throwable $exception): void
   {
     if ($this->isCancelled) return;
 
     foreach ($this->children as $child)
-      $child->get()->processError($exception);
+      try
+      {
+        $child->get()->processError($exception);
+      }
+      catch(\Throwable $e)
+      {
+        Logger::error('Unexpected exception')->exception($e);
+      }
   }  
 
 // ---  ---
@@ -189,7 +246,7 @@ abstract class Pipeline
   /** Группирует элементы по количеству или таймауту */
   function group        (int $count, float $timeout ): self    { return new Pipeline_Op_Group        ($this, $count, $timeout); }
   function sum          (?callable $selector=null   ): self    { return new Pipeline_Op_Sum          ($this, $selector       ); }
-  function unpack       (                           ): self    { return new Pipeline_Op_Unpack       ($this                  ); }
+  function unpack       (int $concurrency = 1       ): self    { return new Pipeline_Op_Unpack       ($this, $concurrency    ); }
   function concurrent   (int $max=1, int $depth=2   ): self    { return new Pipeline_Op_Concurrent   ($this, $max, $depth    ); }
   function catch        (callable $errorHandler     ): self    { return new Pipeline_Op_Catch        ($this, $errorHandler   ); }
 
