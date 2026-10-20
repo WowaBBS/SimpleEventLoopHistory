@@ -51,7 +51,7 @@ Loop::async(function() use ($db) {
       $b=asyncData(readInt($s, 2), readInt($s, 3)); //36
       return [$i, $a, $b];
     })
-    ->concurrent(100)
+    ->concurrent(10)
     // Ëîâèì îøèáêè, âîçíèêøèå âûøå (â map èëè ñåòè HTTP)
     ->catch(function(\Throwable $e) {
       Logger::log("[Error] Item skipped due to an error: " . $e->getMessage());
