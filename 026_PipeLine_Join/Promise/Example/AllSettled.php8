@@ -1,0 +1,28 @@
+<?
+include '../../_All.Test.php';
+
+Loop::async(function() {
+  Logger::log('[Process] We are launching a survey of independent services....');
+
+  $promises = [
+    'service_card'   => sleepAsync(0.5)->then(fn() => 15000), // Успешно вернет баланс
+    'service_crypto' => sleepAsync(1.0)->then(fn() => throw new \RuntimeException("Service crypts are unavailable.")), // Упадет
+    'service_qiwi'   => sleepAsync(1.5)->then(fn() => 450)   // Успешно вернет баланс
+  ];
+
+  // Метод allSettled() никогда не выбросит исключение в await!
+  $report = Promise::allSettled($promises)->await();
+
+  Logger::log('[Process] All services have been polled. Generating report:')();
+
+  foreach ($report as $serviceName => $result)
+  {
+    if ($result['status'] === 'fulfilled')
+      Logger::log("? Balance in {$serviceName}: $" , $result['value']);
+    else // В поле 'reason' лежит Throwable или строка ошибки
+      Logger::log("? Error in {$serviceName}: " , $result['reason']->getMessage());
+  }
+});
+
+// Запускаем Event Loop
+Loop::run();

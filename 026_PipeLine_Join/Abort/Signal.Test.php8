@@ -1,0 +1,39 @@
+<?
+include '../_All.Test.php';
+
+// Подготовим файл
+$largeFileName=LargeFile();
+
+Loop::async(function() {
+  // 1. Создаем контроллер отмены
+  $controller = new AbortController();
+  $signal = $controller->getSignal();
+
+  // 2. Имитируем внешнее событие: через 20 миллисекунд отменяем операцию
+  Loop::delay(0.02, function() use ($controller) {
+    Logger::log('[External event] The user pressed the cancel button!');
+    $controller->abort("File reading interrupted by the user.");
+  });
+
+  try
+  {
+    Logger::log('[Process] Starting to read the file...');
+    
+    global $largeFileName;
+    // Передаем сигнал и в саму операцию, и в await
+    $content = FileReaderChunk::readAll($largeFileName, 4096)->abortBy($signal)->await();
+    
+    Logger::log('[Process] Bytes successfully read: ', strlen($content));
+  }
+  catch (AbortException $e)
+  {
+    // Ловим именно наше кастомное исключение отмены
+    Logger::log('[Process] Catched abort: ', $e->getMessage());
+  }
+  catch (\Throwable $e)
+  {
+    Logger::error('[Process] Some other error: ', $e->getMessage());
+  } 
+});
+
+Loop::run();
