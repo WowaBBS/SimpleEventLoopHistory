@@ -58,17 +58,20 @@ $db = new MockDB();
 
 // 1. Настраиваем TableA: 120 строк. База отдаст этот стрим с задержкой 0.1 сек.
 $tableAData =[];
-for ($i = 1; $i <= 120; $i++) {
+for ($i = 1; $i <= 120; $i++)
   $tableAData[] = ['id' => $i, 'name' => "Item_$i", 'url' => "https://api.com/item_$i"];
-}
-$db->setupResponse("SELECT * FROM TableA", delaySeconds: 0.1, data: $tableAData);
+
+$db->setupResponse('SELECT * FROM TableA', delaySeconds: 0.1, data: $tableAData);
 
 // 2. Настраиваем TableB: ответы для первой пачки (ID 1001 - 1100) и второй (ID 1101 - 1120)
 // База будет <думать> над этим запросом 0.2 сек.
 $tableBData =[];
-for ($i = 1; $i <= 120; $i++) {
+for ($i = 1; $i <= 120; $i++)
   $tableBData[] = ['id' => $i+1000, 'amount' => 10]; // Каждая запись добавит 10 в сумму
-}
+
+$tableBData[ 0]['amount'] = 1000; // Will skip
+$tableBData[11]['amount'] =    5; // Min:  5
+$tableBData[10]['amount'] =   15; // Max: 15
 
 function tableB_select($data, $sql, $params)
 {
@@ -78,12 +81,11 @@ function tableB_select($data, $sql, $params)
   foreach ($data as $rec)
     if (in_array($rec['id'], $ids, true))
       $result[] = $rec;
-//Logger::debug('tableB_select: data.len=', count($data), ', ids.len=', count($ids), ', result.len=', count($result))
-//  ->dump(['ids'=>$ids, 'data'=>$data]);
+
   return $result;
 }
 
-$db->setupResponse("SELECT * FROM TableB", delaySeconds: 0.2, data: $tableBData, callback: tableB_select(...));
+$db->setupResponse('SELECT * FROM TableB', delaySeconds: 0.2, data: $tableBData, callback: tableB_select(...));
 
 // 3. Настраиваем пустой ответ для Insert в TableC
-$db->setupResponse("INSERT INTO TableC", delaySeconds: 0.05, data: []);
+$db->setupResponse('INSERT INTO TableC', delaySeconds: 0.05, data: []);

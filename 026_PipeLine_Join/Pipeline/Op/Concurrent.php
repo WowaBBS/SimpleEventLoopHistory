@@ -9,8 +9,9 @@ class Pipeline_Op_Concurrent extends Pipeline_Base
 
   public function __construct(Pipeline $parent, int $concurrency = 1, int $depth = 2)
   {
-    parent::__construct($parent);
     $this->concurrency = $concurrency;
+    
+    parent::__construct($parent);
   }
   
   protected static function collectPromises(&$errors, &$promises, &$item, $depth)

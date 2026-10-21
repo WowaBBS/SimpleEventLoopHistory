@@ -70,7 +70,6 @@ abstract class Pipeline
   function slice        (int $skip, ?int $limit=null): self    { return new Pipeline_Op_Slice        ($this, $skip, $limit   ); }
   /** Группирует элементы по количеству или таймауту */
   function group        (int $count, float $timeout ): self    { return new Pipeline_Op_Group        ($this, $count, $timeout); }
-  function sum          (?callable $selector=null   ): self    { return new Pipeline_Op_Sum          ($this, $selector       ); }
   function unpack       (int $concurrency = 1       ): self    { return new Pipeline_Op_Unpack       ($this, $concurrency    ); }
   function concurrent   (int $max=1, int $depth=2   ): self    { return new Pipeline_Op_Concurrent   ($this, $max, $depth    ); }
   function catch        (callable $errorHandler     ): self    { return new Pipeline_Op_Catch        ($this, $errorHandler   ); }
@@ -83,12 +82,35 @@ abstract class Pipeline
 
   // --- ТЕРМИНАЛЬНЫЕ МЕТОДЫ ---
   
+  function reduce(
+    callable  $accumulator     ,
+    mixed     $defaultValue    = null,
+    ?bool     $hasDefaultValue = null
+  )                                            : Promise { return new Pipeline_Final_Reduce  ($this, $accumulator, 
+                                                                                   $defaultValue, $hasDefaultValue)->getPromise(); }
+  function count   (int $startWith=0          ): Promise { return new Pipeline_Final_Count   ($this, $startWith   )->getPromise(); }
+  function average (int $count=0, float $sum=0): Promise { return new Pipeline_Final_Average ($this, $count, $sum )->getPromise(); }
+  function combine (callable $combine) { return $combine($this); }
+
+  // --- СИНТАКСИЧЕСКИЙ САХАР НА БАЗЕ REDUCE ---
+  
+  /** Подсчет суммы элементов потока */
+  function sum(mixed $def = 0    ): Promise { return $this->reduce(fn($acc, $val) =>     $acc+ $val  ,$def); }
+  function max(mixed $def = null ): Promise { return $this->reduce(fn($acc, $val) => max($acc, $val) ,$def); }
+  function min(mixed $def = null ): Promise { return $this->reduce(fn($acc, $val) => min($acc, $val) ,$def); }  
+    
+ /** Сбор всех элементов асинхронного потока в один обычный PHP-массив */
+  function toList  (): Promise { return $this->reduce(function(&$acc, $val) { $acc[] = $val; return $acc; }, defaultValue: []); }
+  function toArray (): Promise { return $this->toList(); }
+  
+  function first        (                           ): Promise { return new Pipeline_Final_First        ($this)->getPromise (   ); }
+  function last         (                           ): Promise { return new Pipeline_Final_Last         ($this)->getPromise (   ); }
   /**
    * Терминальный метод. Запускает конвейер и возвращает Promise,
    * который выполнится по завершении и вернет финальное значение потока.
    * Принимает опциональный сигнал отмены.
    */
-  function collect      (                           ): Promise { return new Pipeline_Final_Collect      ($this)->getPromise (   ); }
+  function collect      (                           ): Promise { return new Pipeline_Final_Last         ($this)->getPromise (   ); }
   
   /**
    * Терминальный метод. Запускает весь конвейер и ждет окончания

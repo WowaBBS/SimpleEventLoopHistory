@@ -7,8 +7,9 @@ class Pipeline_Op_Unpack extends Pipeline_Base
 
   public function __construct(Pipeline $parent, int $concurrency = 1)
   {
-    parent::__construct($parent);
     $this->concurrency = $concurrency;
+    
+    parent::__construct($parent);
   }
 
   protected function onProcessWithChild(Pipeline_Event $type, mixed $payload, Pipeline $child): void
@@ -17,7 +18,7 @@ class Pipeline_Op_Unpack extends Pipeline_Base
     {
       // —ценарий 2: Ёлемент - обычный массив или Traversable объект
       if (!is_iterable($payload))
-        throw new \InvalidArgumentException("The unpack operator expects iterable data (array|\Traversable|\Generator)");
+        throw new \InvalidArgumentException('The unpack operator expects iterable data (array|\Traversable|\Generator)');
   
       // —ценарий 1: Ёлемент - нативный PHP-генератор и включен режим параллелизма
       if ($payload instanceof \Traversable && $this->concurrency > 1)

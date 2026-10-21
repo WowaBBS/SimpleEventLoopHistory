@@ -10,10 +10,12 @@ class Pipeline_Op_Group extends Pipeline_Base
 
   function __construct(Pipeline $parent, int $count, float $timeout)
   {
-    parent::__construct($parent);
     $this->count     = $count;
     $this->timeout   = $timeout;
     $this->lastFlush = microtime(true);
+    
+    parent::__construct($parent);
+
     $this->scheduleTimer();
   }
 

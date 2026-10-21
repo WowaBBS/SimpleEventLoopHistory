@@ -2,13 +2,14 @@
 class Loop
 {
   private static array $timers             = [];
+  private static array $fibers             = [];
   private static array $readStreams        = [];
   private static bool  $running            = false;
   private static array $signalCallbacks    = [];
   private static bool  $signalsInitialized = false;
-  private static float $timeLimit          =0;
-  private static float $hardTimeLimit      =0;
-  private static float $watchingTimer      =10;
+  private static float $timeLimit          =  0;
+  private static float $hardTimeLimit      =  0;
+  private static float $watchingTimer      = 10;
   
   static function setTimeLimit(float $seconds, float $hard=10)
   {
@@ -188,6 +189,24 @@ class Loop
   // Óäîáíûé õåëïåğ äëÿ çàïóñêà êîäà â èçîëèğîâàííîì ôàéáåğå
   static function async(callable $callback): void
   {
+    $callback = function() use($callback)
+    {
+      $fiber=Fiber::getCurrent();
+      $id=spl_object_id($fiber);
+      self::$fibers[$id]=$fiber;
+      try
+      {
+        $callback();
+      }
+      catch(\Throwable $e)
+      {
+        Logger::exception($e, 'Loopr::async{}  Fiber.exception:'); //TODO: Name;
+      }
+      finally
+      {
+        UnSet(self::$fibers[$id]);
+      }
+    };
     $fiber = new Fiber($callback);
     // Çàïóñê ôàéáåğà. Åñëè âíóòğè áóäåò Fiber::suspend(), óïğàâëåíèå âåğíåòñÿ ñşäà
     $fiber->start(); 

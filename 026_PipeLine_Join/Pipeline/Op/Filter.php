@@ -5,8 +5,9 @@ class Pipeline_Op_Filter extends Pipeline_Base
 
   public function __construct(Pipeline $parent, callable $predicate)
   {
-    parent::__construct($parent);
     $this->predicate = $predicate;
+    
+    parent::__construct($parent);
   }
 
   protected function onProcessWithChild(Pipeline_Event $type, mixed $payload, Pipeline $child): void

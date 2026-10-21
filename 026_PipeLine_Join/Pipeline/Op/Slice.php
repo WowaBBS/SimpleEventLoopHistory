@@ -6,9 +6,10 @@ class Pipeline_Op_Slice extends Pipeline_Base
 
   public function __construct(Pipeline $parent, int $skip = 0, ?int $limit = null) 
   {
-    parent::__construct($parent);
     $this->skip  = $skip  ;
     $this->limit = $limit ;
+    
+    parent::__construct($parent);
   }
 
   /** Геттеры и сеттеры для пересчета на лету */
@@ -18,14 +19,15 @@ class Pipeline_Op_Slice extends Pipeline_Base
   public function updateSlice(int $skip, ?int $limit): void
   {
     if ($skip)
+    {
       $this->skip+= $skip;
-    if ($this->limit !== null)
-      $this->limit-= $skip;
+      
+      if ($this->limit !== null)
+        $this->limit-= $skip;
+    }
+    
     if ($limit !== null)
-      if ($this->limit)
-        $this->limit = min($this->limit, $limit);
-      else
-        $this->limit = $limit;
+      $this->limit = min($this->limit?? $limit, $limit);
   }
 
   protected function onProcessWithChild(Pipeline_Event $type, mixed $payload, Pipeline $child): void
@@ -33,22 +35,27 @@ class Pipeline_Op_Slice extends Pipeline_Base
     if (!$type->isData()) { $child->process($type, $payload); return; }
 
     // Пропускаем первые $skip элементов
-    if ($this->skip>0)
+    if ($this->skip > 0)
     {
       $this->skip--;
       return;
     }
     
-    if ($this->limit === null) return;
+    if ($this->limit === null)
+    {
+      $this->emit($payload);
+      return;
+    }
     
     // Если задан лимит и мы его достигли
-    if ($this->limit > 0)
+    $limit = &$this->limit;
+    if ($limit > 0)
     {
-      $limit=--$this->limit;
+      --$limit;
       $this->emit($payload);
       if($limit > 0) return;
     }
-    
+    $this->emitEnd();
     $this->abortPipeline('limit');
   }
   

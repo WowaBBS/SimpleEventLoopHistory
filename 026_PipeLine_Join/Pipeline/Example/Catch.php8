@@ -37,7 +37,7 @@ function readInt(int &$stream, int $count)
 }
 
 Loop::async(function() use ($db) {
-  Logger::log("--- START TEST ---");
+  Logger::log('--- START TEST ---');
   
   $generator=function() { for($i=0; $i<100; $i++) yield $i; };
   // Создаем стартовый пайплайн
@@ -51,10 +51,11 @@ Loop::async(function() use ($db) {
       $b=asyncData(readInt($s, 2), readInt($s, 3)); //36
       return [$i, $a, $b];
     })
-    ->concurrent(10)
+    ->concurrent(100)
+
     // Ловим ошибки, возникшие выше (в map или сети HTTP)
     ->catch(function(\Throwable $e) {
-      Logger::log("[Error] Item skipped due to an error: " . $e->getMessage());
+      Logger::log('[Error] Item skipped due to an error: ', $e->getMessage());
       // Возвращаем null, чтобы просто пропустить этот элемент и не прерывать сумму
     })
 
@@ -64,13 +65,8 @@ Loop::async(function() use ($db) {
     })
     // Суммируем строго по контракту атомарных айтемов
     ->sum() //fn($rec) => $rec[0])
-
-    // Запускаем сбор
-    ->collect()
     ->await();
 
-  Logger::log("--- END OF TEST ---");
+  Logger::log('TotalAmount: ', $totalAmount);
+  Logger::log('--- END OF TEST ---');
 });
-
-// Запускаем Цикл Событий
-Loop::run();

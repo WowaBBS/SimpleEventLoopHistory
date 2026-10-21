@@ -186,6 +186,26 @@ class Promise
   }
 
   /**
+   * Ограничивает время выполнения текущего промиса.
+   * Если промис не успевает выполниться за $seconds секунд, возвращается отклонённый промис.
+   */
+  function timeout(float $seconds, ?string $exceptionMessage = null): self
+  {
+    // Создаем промис-таймер, который гарантированно упадет через указанное время.
+    // Для создания таймера используем наш Loop::delay.
+    $timeoutDeferred = new Deferred();
+    
+    Loop::delay($seconds, function() use ($timeoutDeferred, $exceptionMessage, $seconds) {
+      $message = $exceptionMessage ?? "The operation exceeded the timeout limit of {$seconds} seconds.";
+      $timeoutDeferred->reject(new \RuntimeException($message));
+    });
+
+    // Запускаем гонку между текущим промисом ($this) и промисом-таймером.
+    // Возвращаем результат этой гонки.
+    return self::race([$this, $timeoutDeferred->promise()]);
+  }  
+  
+  /**
    * Ожидает выполнения всех промисов в массиве.
    * Возвращает массив результатов в тех же ключах.
    */
@@ -306,26 +326,7 @@ class Promise
     return $deferred->promise();
   }
 
-  /**
-   * Ограничивает время выполнения текущего промиса.
-   * Если промис не успевает выполниться за $seconds секунд, возвращается отклонённый промис.
-   */
-  function timeout(float $seconds, ?string $exceptionMessage = null): self
-  {
-    // Создаем промис-таймер, который гарантированно упадет через указанное время.
-    // Для создания таймера используем наш Loop::delay.
-    $timeoutDeferred = new Deferred();
-    
-    Loop::delay($seconds, function() use ($timeoutDeferred, $exceptionMessage, $seconds) {
-      $message = $exceptionMessage ?? "The operation exceeded the timeout limit of {$seconds} seconds.";
-      $timeoutDeferred->reject(new \RuntimeException($message));
-    });
-
-    // Запускаем гонку между текущим промисом ($this) и промисом-таймером.
-    // Возвращаем результат этой гонки.
-    return self::race([$this, $timeoutDeferred->promise()]);
-  }
-
+  // TODO: join
   /**
    * Ожидает завершения всех промисов (успешного или с ошибкой).
    * Возвращает массив структур: 

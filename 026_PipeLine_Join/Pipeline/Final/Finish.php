@@ -1,26 +1,10 @@
 <?php
 /** Конечная точка FINISH (Блокирует файбер до конца) */
-class Pipeline_Final_Finish extends Pipeline
+class Pipeline_Final_Finish extends Pipeline_Final_Base
 {
-  private Deferred $deferred;
-
-  function __construct(Pipeline $parent)
-  {
-    parent::__construct($parent);
-    $this->deferred = new Deferred();
-    $this->findRoot()->startIteration();
-  }
-
-  protected function isEndpoint(): bool { return true; }
-
-  function wait(): void { $this->deferred->promise()->await(); }
-
-  protected function onProcess(Pipeline_Event $type, mixed $payload): void
+  protected function onProcessFinalEvent(Pipeline_Event $type, mixed $payload): void
   {
     if ($type->isEnd())
-      $this->deferred->resolve(null);
+      $this->deferred->resolve();
   }
-
-  protected function registerChild(Pipeline $child): void {}
-  protected function unregisterChild(Pipeline $child, $reason): void {}
 }

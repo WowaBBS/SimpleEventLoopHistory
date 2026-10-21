@@ -1,13 +1,14 @@
 <?
 abstract class Pipeline_Base extends Pipeline
 {
-  protected $child { get=>$this->child?->get(); set=>$value? \WeakReference::Create($value):null; }
+  protected ?\WeakReference $childRef=null;
+  protected ?Pipeline $child { get=>$this->childRef?->get(); set(?Pipeline $v) { $this->childRef=$v? \WeakReference::Create($v):null; } }
 
   /** Ѕезопасное добавление слабой ссылки на ребенка */
   protected function registerChild(Pipeline $child): void
   {
     $old = $this->child;
-    if (!$old)
+    if (!$old || $old instanceof Pipeline_Final_Null)
     {
       $this  ->child   = $child ;
       $child ->setParent($this );
@@ -15,7 +16,7 @@ abstract class Pipeline_Base extends Pipeline
     }
     
     if ($old instanceof Pipeline_Fork)
-      $fork = $oldChild;
+      $fork = $old;
     else
     {
       $this->child = null;

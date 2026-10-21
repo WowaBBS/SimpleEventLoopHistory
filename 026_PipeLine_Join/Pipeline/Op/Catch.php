@@ -6,8 +6,9 @@ class Pipeline_Op_Catch extends Pipeline_Base
 
   public function __construct(Pipeline $parent, callable $errorHandler)
   {
-    parent::__construct($parent);
     $this->errorHandler = $errorHandler;
+    
+    parent::__construct($parent);
   }
 
   protected function onProcessWithChild(Pipeline_Event $type, mixed $payload, Pipeline $child): void

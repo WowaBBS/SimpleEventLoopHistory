@@ -11,7 +11,7 @@ class Logger
     // Имитируем небольшую задержку записи на диск (например, 1 мс)
     Loop::delay(0.001, function() use ($deferred, $args) {
       self::log(...$args);
-      $deferred->resolve(null);
+      $deferred->resolve();
     });
 
     return $deferred->promise();

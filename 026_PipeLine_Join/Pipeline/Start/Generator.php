@@ -6,8 +6,9 @@ class Pipeline_Start_Generator extends Pipeline_Base
 
   function __construct(\Generator $generator)
   {
-    parent::__construct(null);
     $this->generator = $generator;
+    
+    parent::__construct(null);
   }
 
   function startIteration(): void

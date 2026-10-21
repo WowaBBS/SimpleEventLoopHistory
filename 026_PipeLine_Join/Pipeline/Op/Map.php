@@ -7,8 +7,9 @@ class Pipeline_Op_Map extends Pipeline_Base
 
   function __construct(Pipeline $parent, callable $callback)
   {
-    parent::__construct($parent);
     $this->callback = $callback;
+
+    parent::__construct($parent);
   }
 
   protected function onProcessWithChild(Pipeline_Event $type, mixed $payload, Pipeline $child): void

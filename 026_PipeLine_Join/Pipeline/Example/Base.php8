@@ -7,12 +7,13 @@ Loop::setTimeLimit(5, 1);
 Loop::async(function() use ($db) {
   $task = 'MyTask';
 
-  Logger::log("--- START TEST ---");
+  Logger::log('--- START TEST ---');
 
   try
   {
     // Создаем стартовый пайплайн
     $totalAmount = Pipeline::from($db->queryAsyncStream('SELECT * FROM TableA WHERE task = ?', [$task]))
+      ->skip(1)->limit(110)->skip(1)
       // Разветвление потока на несколько независимых детей
       ->fork(function(Pipeline $pipeline) {
         // Ветка 1: Просто пишем в лог параллельно
@@ -27,7 +28,7 @@ Loop::async(function() use ($db) {
       ->concurrent(10)
       // Ловим ошибки, возникшие выше (в map или сети HTTP)
       ->catch(function(\Throwable $e) {
-        Logger::log("[Error] Item skipped due to an error: " . $e->getMessage());
+        Logger::log('[Error] Item skipped due to an error: ', $e->getMessage());
         // Возвращаем null, чтобы просто пропустить этот элемент и не прерывать сумму
       })
   
@@ -35,7 +36,7 @@ Loop::async(function() use ($db) {
       ->group(count: 100, timeout: 1)
   
       ->map(function($list) use ($db) {
-        Logger::log(">>> The group has been formed! Responses received: " . count($list));
+        Logger::log('>>> The group has been formed! Responses received: ', count($list));
         $ids = [];
         foreach ($list as $item)
         {
@@ -50,21 +51,27 @@ Loop::async(function() use ($db) {
       ->unpack(5)
       
       // Суммируем строго по контракту атомарных айтемов
-      ->sum(fn($rowB) => $rowB['amount']) //1200-[13, 40].amount =1190
-  
+      ->map(fn($rowB) => $rowB['amount'])
+      ->combine(
+        fn($pipeline)=>Promise::all([ //Skipped 2, 13, 40
+          'count' => $pipeline->count   (), // 110-3=107
+          'sum'   => $pipeline->sum     (), // 107*10.amount =1070
+          'min'   => $pipeline->min     (), //  5
+          'max'   => $pipeline->max     (), // 15
+          'avg'   => $pipeline->average (), // 10
+          'first' => $pipeline->first   (),
+          'last'  => $pipeline->last    (),
+        ])
+      )
       // Запускаем сбор
-      ->collect()
       ->await();
   
     // Запись финала
-    $db->queryAsync('INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())', [$task, $totalAmount])->await();
-    Logger::log("Recording the final result in TableC. Final total: " , $totalAmount);
+    $db->queryAsync('INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())', [$task, $totalAmount['sum']])->await();
+    Logger::log('Recording the final result in TableC. Final total: ', $totalAmount);
   }
   finally
   {
-    Logger::log("--- END OF TEST ---");
+    Logger::log('--- END OF TEST ---');
   }
 });
-
-// Запускаем Цикл Событий
-Loop::run();
