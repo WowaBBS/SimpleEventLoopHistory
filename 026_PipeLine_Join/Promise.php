@@ -49,9 +49,6 @@ class Promise
 
     $this->addHandler(fn($promise)=>$promise->thenHandler($deferred, $onFulfilled, $onRejected), $deferred->promise());
 
-    if (!$this->isPending())
-      $this->executeHandlers();
-
     return $deferred->promise();
   }
   
@@ -75,8 +72,6 @@ class Promise
     };
     
     $this->addHandler($callback, $deferred->promise());
-    if (!$this->isPending())
-      $this->executeHandlers();
       
     return $deferred->promise();
   }
@@ -117,7 +112,7 @@ class Promise
   {
     // Если промис уже выполнен, сразу возвращаем значение (без паузы)
     if ($this->isFulfilled ()) return $this->value;
-    if ($this->isRejected  ()) throw $this->getThrowable();
+    if ($this->isRejected  ()) throw $this->getReason();
 
     // Проверяем, находимся ли мы внутри файбера
     $currentFiber = \Fiber::getCurrent();
@@ -230,7 +225,7 @@ class Promise
   // Метод для установки колбэка очистки (используется внутри AsyncFile/httpGet)
   function onReject(callable $callback, ?Object $who=null): self
   {
-    $this->addHandler(fn($promise)=>$promise->isRejected() && $callback(), $who);
+    $this->addHandler(fn($promise)=>$promise->isRejected() && $callback($promise->getReason()), $who);
     return $this;
   }
 
@@ -275,6 +270,7 @@ class Promise
 // Handler functions
 
   private array $handlers = [];
+  static bool $delayedEvents = !false;
 
   static function keyHandler(object|int|string $key): int|string { return is_object($key)? spl_object_id($key):$key; }
   
@@ -283,6 +279,10 @@ class Promise
     if ($this->isLazy()) $this->initializeLazy();
     
     $this->handlers[self::keyHandler($key?? $handler)] = $handler;
+    
+    if ($this->isPending()) return;
+    
+    $this->executeHandlers();
   }
 
   function removeHandler(object|int|string $key)
@@ -297,10 +297,24 @@ class Promise
   
   function executeHandlers(): void
   {
-    $handlers=$this->handlers;
+    $handlers = $this->handlers;
     if (!$handlers) return;
-    
     $this->handlers = [];
+
+    if (!static::$delayedEvents) { $this->syncExecuteHandlers($handlers); return; }
+
+    $this->asyncExecuteHandlers($handlers);
+  }
+  
+  protected function asyncExecuteHandlers($handlers): void
+  {
+    // Отправляем выполнение обработчиков в Event Loop,
+    // чтобы текущий синхронный код PHP гарантированно завершился!
+    Loop::delay(0, fn()=>$this->syncExecuteHandlers($handlers)); // TODO: Workaround: Need to use task queue
+  }
+  
+  protected function syncExecuteHandlers($handlers): void
+  {
     foreach($handlers as $handler)
       try
       {
@@ -310,8 +324,14 @@ class Promise
       {
         Logger::exception($e, 'Promise unexpected excetion:');
       }
+      
+    $handlers = $this->handlers;
+    if (!$handlers) return;
+    $this->handlers = [];
     
-    if ($this->handlers) Logger::error('Unexpected behavior, added handlers during executiong')->backtrace();
+    Logger::error('Unexpected behavior, added handlers during executiong')->backtrace();
+    
+    $this->asyncExecuteHandlers($handlers);
   }
   
 //****************************************************************
