@@ -1,0 +1,77 @@
+<?
+include '../../_All.Test.php';
+include 'Data.php';
+
+Loop::setTimeLimit(9, 1); //Added 5+4 seconds!!!
+
+Loop::async(function() use ($db) {
+  $task = 'MyTask';
+
+  Logger::log('--- START TEST ---');
+
+  try
+  {
+    // Создаем стартовый пайплайн
+    $totalAmount = Pipeline::from($db->queryAsyncStream('SELECT * FROM TableA WHERE task = ?', [$task]))
+      ->skip(1)->limit(110)->skip(1)
+      // Разветвление потока на несколько независимых детей
+      ->fork(function(Pipeline $pipeline) {
+        // Ветка 1: Просто пишем в лог параллельно
+        $pipeline->map(fn($row) => Logger::log('Get TableA.Item.Name: ' . $row['name'])->Ret())->run();
+      })
+      // Основная ветка конвейера
+      ->map(function($row) {
+        if ($row['id'] === 13) throw new \RuntimeException('Unlucky record ID!');
+        return [$row, httpGetAsync($row['url'])];
+      })
+      // Выделенный оператор для ожидания параллельных HTTP-промисов из массива
+      ->concurrent(10)
+      // Ловим ошибки, возникшие выше (в map или сети HTTP)
+      ->catch(function(\Throwable $e) {
+        Logger::log('[Error] Item skipped due to an error: ', $e->getMessage());
+        // Возвращаем null, чтобы просто пропустить этот элемент и не прерывать сумму
+      })
+  
+      // Группировка
+      ->group(count: 100, timeout: 1)
+  
+      ->map(function($list) use ($db) {
+        Logger::log('>>> The group has been formed! Responses received: ', count($list));
+        $ids = [];
+        foreach ($list as $item)
+        {
+          $content = $item[1];
+          $data = json_decode($content);
+          $ids[] = $data->id;
+        }
+        // Возвращаем промис запроса к БД
+        return $db->queryAsyncStream('SELECT * FROM TableB WHERE id in (?)', [$ids]);
+      })
+      // Разворачиваем полученный из БД массив строк TableB, чтобы sum() считал их поштучно
+      ->unpack(5)
+      
+      // Суммируем строго по контракту атомарных айтемов
+      ->map(fn($rowB) => $rowB['amount'])
+      ->combine(
+        fn($pipeline)=>Promise::all([ //Skipped 2, 13, 40
+          'count' => $pipeline->count   (), // 110-3=107
+          'sum'   => $pipeline->sum     (), // 107*10.amount =1070
+          'min'   => $pipeline->min     (), //  5
+          'max'   => $pipeline->max     (), // 15
+          'avg'   => $pipeline->average (), // 10
+          'first' => $pipeline->first   (),
+          'last'  => $pipeline->last    (),
+        ])
+      )
+      // Запускаем сбор
+      ->await();
+  
+    // Запись финала
+    $db->queryAsync('INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())', [$task, $totalAmount['sum']])->await();
+    Logger::log('Recording the final result in TableC. Final total: ', $totalAmount);
+  }
+  finally
+  {
+    Logger::log('--- END OF TEST ---');
+  }
+});

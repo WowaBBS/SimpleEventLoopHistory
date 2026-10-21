@@ -1,0 +1,25 @@
+<?
+include '../../_All.Test.php';
+
+Loop::async(function() {
+  Logger::log('--- Initialization of lazy promises ---');
+  
+  // Создаем промисы. Обратите внимание: логов отправки в сеть или запуск таймеров НЕТ!
+  $promiseUrl   = lazyHttpGet('http://127.0.0.1');
+  $promiseSleep = lazySleep(1);
+
+  Logger::log('Promises have been created, but the computations have not yet begun.');
+  sleepAsync(1)->await(); // Просто спим, в сети тишина...
+
+  Logger::log('--- Activation via await() ---');
+  
+  // Как только вызываем await(), ленивый промис мгновенно 'просыпается'
+  // и делает реальный httpGetAsync под капотом!
+  $data = $promiseUrl->await();
+  Logger::log('Result: ', strlen($data));
+
+  Logger::log('--- Activation via then() ---');
+  $promiseSleep->then(fn() => Logger::logAsync('The lazy sleep is over!'));
+});
+
+?>

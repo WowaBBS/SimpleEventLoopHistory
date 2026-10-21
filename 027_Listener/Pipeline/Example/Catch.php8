@@ -1,0 +1,72 @@
+<?
+include '../../_All.Test.php';
+include 'Data.php';
+
+Loop::setTimeLimit(15, 5);
+
+function emitData($promise, $type, $value)
+{
+  switch($type)
+  {
+  case  0: $promise->resolve($value); break;
+  case  1: $promise->reject($value); break;
+  case  2: $promise->abort($value); break;
+  default:
+  //$promise->abort('Unknown type='.$type);
+    $promise->resolve($value);
+  }
+}
+
+function asyncData($delayed, $type, $value='data')
+{
+  $promise=New Deferred()->Promise();
+
+  if($delayed)
+    Loop::delay($delayed, fn()=>emitData($promise, $type, $value));
+  else
+    emitData($promise, $type, $value);
+  
+  return $promise;
+}
+
+function readInt(int &$stream, int $count)
+{
+  $result =        $stream % $count;
+  $stream = IntDiv($stream , $count);
+  return $result;
+}
+
+Loop::async(function() use ($db) {
+  Logger::log('--- START TEST ---');
+  
+  $generator=function() { for($i=0; $i<100; $i++) yield $i; };
+  // Создаем стартовый пайплайн
+  $totalAmount = Pipeline::from($generator())
+    // Основная ветка конвейера
+    ->map(function($i) {
+      if ($i === 13)
+        throw new \RuntimeException('Unlucky number!');
+      $s=$i;
+      $a=asyncData(readInt($s, 2), readInt($s, 3)); //6
+      $b=asyncData(readInt($s, 2), readInt($s, 3)); //36
+      return [$i, $a, $b];
+    })
+    ->concurrent(100)
+
+    // Ловим ошибки, возникшие выше (в map или сети HTTP)
+    ->catch(function(\Throwable $e) {
+      Logger::log('[Error] Item skipped due to an error: ', $e->getMessage());
+      // Возвращаем null, чтобы просто пропустить этот элемент и не прерывать сумму
+    })
+
+    ->map(function($l) {
+      Logger::log('Item: ', $l);
+      return $l[0];
+    })
+    // Суммируем строго по контракту атомарных айтемов
+    ->sum() //fn($rec) => $rec[0])
+    ->await();
+
+  Logger::log('TotalAmount: ', $totalAmount);
+  Logger::log('--- END OF TEST ---');
+});
