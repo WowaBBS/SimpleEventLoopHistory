@@ -45,9 +45,10 @@ abstract class Pipeline
   
   protected abstract function onProcess(Pipeline_Event $type, mixed $payload): void;
   
-  function emit      ($data  ) { $this->process(Pipeline_Event::DATA  ,$data  ); }
-  function emitError ($error ) { $this->process(Pipeline_Event::ERROR ,$error ); }
-  function emitEnd   (       ) { $this->process(Pipeline_Event::END   , null  ); }
+  function canEmit   ():bool { return false; }
+  function emit      ($data  ) { $this->emitEnd(); } // { $this->process(Pipeline_Event::DATA  ,$data  ); }
+  function emitError ($error ) { $this->emitEnd(); } // { $this->process(Pipeline_Event::ERROR ,$error ); }
+  function emitEnd   (       ) { $this->throwLogicError('Emit is not implemented'); } // { $this->process(Pipeline_Event::END   , null  ); }
 
   /** Защищает эндпоинты от ложного каскадного авто-удаления */
   protected function isEndpoint(): bool { return false; }
@@ -127,28 +128,15 @@ abstract class Pipeline
     
     $this->parent?->childLock($isLocked);
   }
-
+  
   function unlockPromise():?Promise
   {
     if (!$this->isLocked()) return null;
     
-    $deferred = $this->lockDeferred; //??= new Deferred();
+    $deferred = $this->lockDeferred??= new Deferred();
     
-    if (!$deferred)
-    {
-      $deferred ??= new Deferred();
-      $this->lockDeferred = $deferred;
-    
-      $deferred->promise()->addHandler(fn($p)=>$this->debug('isLocked=false'));
-      
-      Loop::delay(1, function() {
-        if(!$this->isLocked()) return;
-        $this->debug('isLocked=',$this->isProcessing? 'Proc':'', $this->isChildLocked? 'Child':'', $this->isOverloaded? 'Async':'');
-        Loop::delay(1, Closure::getCurrent());
-      });                         
-      
-      $this->debug('isLocked=true');
-    }
+    if (self::$debugLockPromise)
+      $this->debugLockPromise($deferred->promise());
     
     return $deferred->promise();
   }
@@ -215,7 +203,8 @@ abstract class Pipeline
 //****************************************************************
 // Debug function
 
-  static bool $debugFullPath = !false;
+  static bool $debugFullPath    = true  ;
+  static bool $debugLockPromise = !false ;
 
   function error(...$args) { return Logger::error($this->debugName(), ': ', ...$args); }
   function debug(...$args) { return Logger::debug($this->debugName(), ': ', ...$args); }
@@ -242,5 +231,21 @@ abstract class Pipeline
     $this->parent?->buildDebugName($res, $this);
     $res[] = array_last(explode('_', get_class($this))); //class
   }
+
+  function debugLockPromise($promise)
+  {
+    $key='debugLock';
+    if ($promise->hasHandler($key)) return;
+    $promise->addHandler(fn($p)=>$this->debug('isLocked=false'), $key);
+    
+    Loop::delay(1, function() {
+      if(!$this->isLocked()) return;
+      $this->debug('isLocked=',$this->isProcessing? 'Proc':'', $this->isChildLocked? 'Child':'', $this->isOverloaded? 'Async':'');
+      Loop::delay(1, Closure::getCurrent());
+    });                         
+    
+    $this->debug('isLocked=true');
+  }
+
 //****************************************************************
 }

@@ -24,11 +24,11 @@ class Pipeline_Op_Map extends Pipeline_Base
     }
     catch(\Throwable $e)
     {
-      $child->emitError($e);
+      $this->emitError($e);
       return;
     }
     
     // ѕроталкиваем данные напр€мую в метод ребенка!
-    $child->emit($result);
+    $this->emit($result);
   }
 }

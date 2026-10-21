@@ -25,7 +25,6 @@ Loop::async(function() use ($db) {
         return [$row, httpGetAsync($row['url'])];
       })
       // Выделенный оператор для ожидания параллельных HTTP-промисов из массива
-    //->concurrent()
       ->concurrent(10)
       // Ловим ошибки, возникшие выше (в map или сети HTTP)
       ->catch(function(\Throwable $e) {
@@ -46,14 +45,10 @@ Loop::async(function() use ($db) {
           $ids[] = $data->id;
         }
         // Возвращаем промис запроса к БД
-        // TODO: sequence
-      //return $db->queryAsync('SELECT * FROM TableB WHERE id in (?)', [$ids]);
         return $db->queryAsyncStream('SELECT * FROM TableB WHERE id in (?)', [$ids]);
       })
-    //->concurrent(5) // TODO: sequence instead
       // Разворачиваем полученный из БД массив строк TableB, чтобы sum() считал их поштучно
-      ->unpack()
-    //->unpack(5) //TODO: Does not work
+      ->unpack(5)
       
       // Суммируем строго по контракту атомарных айтемов
       ->sum(fn($rowB) => $rowB['amount']) //1200-[13, 40].amount =1190

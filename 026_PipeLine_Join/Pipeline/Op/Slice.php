@@ -45,7 +45,7 @@ class Pipeline_Op_Slice extends Pipeline_Base
     if ($this->limit > 0)
     {
       $limit=--$this->limit;
-      $child->emit($payload);
+      $this->emit($payload);
       if($limit > 0) return;
     }
     

@@ -93,14 +93,21 @@ class Promise
     }
   }
   
-  function addHandler(callable $handler, ?object $objectKey = null)
+  static function keyHandler(object|int|string $key): int|string { return is_object($key)? spl_object_id($key):$key; }
+  
+  function addHandler(callable $handler, null|object|int|string $key = null)
   {
-    $this->handlers[spl_object_id($objectKey?? $handler)] = $handler;
+    $this->handlers[self::keyHandler($key?? $handler)] = $handler;
   }
 
-  function removeHandler(object $objectKey)
+  function removeHandler(object|int|string $key)
   {
-    unset($this->handlers[spl_object_id($objectKey)]);
+    unset($this->handlers[self::keyHandler($key)]);
+  }
+  
+  function hasHandler(object|int|string $key)
+  {
+    return array_key_exists(self::keyHandler($key), $this->handlers);
   }
   
   function then(?callable $onFulfilled = null, ?callable $onRejected = null): self

@@ -70,6 +70,11 @@ abstract class Pipeline_Base extends Pipeline
   protected abstract function onProcessWithChild(Pipeline_Event $type, mixed $payload, Pipeline $child): void;
 
 //****************************************************************
+  function canEmit   (): bool { return $this->child?->isValid()?? false; }
+  function emit      ($data  ) { $this->child?->process(Pipeline_Event::DATA  ,$data  ); }
+  function emitError ($error ) { $this->child?->process(Pipeline_Event::ERROR ,$error ); }
+  function emitEnd   (       ) { $this->child?->process(Pipeline_Event::END   , null  ); }
+//****************************************************************
 // Debug function
 
   protected function buildDebugName(array &$res, $child=null)

@@ -53,14 +53,14 @@ class Pipeline_Op_Concurrent extends Pipeline_Base
     if ($errors)
     {
       //TODO: abort other promices
-      $this->child->emitError(new AggregateException('Concurrent operator catched errors', $errors));
+      $this->emitError(new AggregateException('Concurrent operator catched errors', $errors));
       return true;
     }
     
     if (!$promises)
     {
       // Обычный элемент просто пробрасываем дальше
-      $this->child->emit($item);
+      $this->emit($item);
       return true;
     }
     
@@ -83,7 +83,7 @@ class Pipeline_Op_Concurrent extends Pipeline_Base
       $id = spl_object_id($promise);
       $this->active[$id] = $item;
       
-      // TODO: $promise->then(fn()=>$this->handler($promise), fn()=>$this->child->emitError($promise->await()))?
+      // TODO: $promise->then(fn()=>$this->handler($promise), fn()=>$this->emitError($promise->await()))?
       $promise->addHandler($this->handler(...), $this);
       if (count($this->active) < $this->concurrency)
         return true;
@@ -105,7 +105,7 @@ class Pipeline_Op_Concurrent extends Pipeline_Base
     {
       while ($this->active)
         $this->deferred->Promise()->await();
-      $child->emitEnd();
+      $this->emitEnd();
       return;
     }
     
@@ -122,9 +122,9 @@ class Pipeline_Op_Concurrent extends Pipeline_Base
       $this->deferred = new Deferred();
     
     if ($promise->isFulfilled())
-      $this->addActive($active, true); // TODO: $this->child->emit($promise->await());
+      $this->addActive($active, true); // TODO: $this->emit($promise->await());
     else
-      $this->child->emitError($promise->getThrowable());
+      $this->emitError($promise->getThrowable());
     
     $deferred->resolve();
   }

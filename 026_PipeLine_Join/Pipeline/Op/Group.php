@@ -33,7 +33,7 @@ class Pipeline_Op_Group extends Pipeline_Base
       if (!empty($this->chunk))
         $this->flush(); // —брасываем остатки
       
-      $child->emitEnd();
+      $this->emitEnd();
       return;
     }
     
@@ -46,7 +46,7 @@ class Pipeline_Op_Group extends Pipeline_Base
     if (empty($chunk)) return;
     $this->chunk = [];
     $this->lastFlush = microtime(true);
-    $this->child?->emit($chunk);
+    $this->emit($chunk);
   }
 
   private function scheduleTimer(): void

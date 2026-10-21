@@ -16,8 +16,8 @@ class Pipeline_Op_Sum extends Pipeline_Base
   {
     if ($type->isEnd())
     { // Выдаёт финальную сумму в поток только при завершении
-      $child->emit($this->total);
-      $child->emitEnd();
+      $this->emit($this->total);
+      $this->emitEnd();
       return;
     }
 
