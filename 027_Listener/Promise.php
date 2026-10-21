@@ -114,26 +114,37 @@ class Promise
     if ($this->isFulfilled ()) return $this->value;
     if ($this->isRejected  ()) throw $this->getReason();
 
-    // Проверяем, находимся ли мы внутри файбера
-    $currentFiber = \Fiber::getCurrent();
-    if($currentFiber === null) //TODO: It's possible
-      throw new \LogicException("The await() method can only be called within a Fiber.");
+    // --- СЦЕНАРИЙ 1: Мы находимся внутри Файбера ---    
+    if($currentFiber = \Fiber::getCurrent())
+    {
+      // Подписываемся на этот же промис
+      $this->then(
+        // Когда выполнится - возобновляем файбер и передаем результат
+        fn($value    ) => !$currentFiber->isTerminated() && $currentFiber->resume($value),
+        // Если ошибка - возобновляем файбер, бросая в него исключение
+        fn($exception) => !$currentFiber->isTerminated() && $currentFiber->throw($exception),
+      );
 
-    // Подписываемся на этот же промис
-    $this->then(
-      // Когда выполнится - возобновляем файбер и передаем результат
-      fn($value) => !$currentFiber->isTerminated() && $currentFiber->resume($value),
-      // Если ошибка - возобновляем файбер, бросая в него исключение
-      fn($exception) => !$currentFiber->isTerminated() && $currentFiber->throw(
-        $exception instanceof \Throwable 
-          ?$exception
-          :new \RuntimeException((string)$exception)
-      )
-    );
+      // Приостанавливаем файбер. Управление возвращается в основной поток (Event Loop)
+      // Когда вызовется resume() или throw(), код продолжится со следующей строки
+      return \Fiber::suspend();
+    }
+    
+    // --- СЦЕНАРИЙ 2: Мы в основном потоке (НЕ в файбере) ---    
+    // Просто крутим цикл событий до тех пор, пока этот промис не завершится
+    while ($this->isNotSettled())
+    {
+      $hasWork = Loop::tick();
+      
+      // Защита от вечного цикла: если в Loop кончились задачи (таймеры/сокеты), 
+      // а промис так и не разрешился - это взаимная блокировка (Deadlock)
+      if (!$hasWork && $this->isNotSettled())
+        throw new \LogicException('Deadlock detected: Execution has been halted because there are no active tasks in the Event Loop to resolve this promise.');
+    }
 
-    // Приостанавливаем файбер. Управление возвращается в основной поток (Event Loop)
-    // Когда вызовется resume() или throw(), код продолжится со следующей строки
-    return \Fiber::suspend();
+    // Возвращаем результат или бросаем ошибку
+    if($this->isFulfilled()) return $this->value;
+    throw $this->getReason();    
   }
   
   /**
@@ -270,7 +281,7 @@ class Promise
 // Handler functions
 
   private array $handlers = [];
-  static bool $delayedEvents = !false;
+  static bool $delayedEvents = false;
 
   static function keyHandler(object|int|string $key): int|string { return is_object($key)? spl_object_id($key):$key; }
   

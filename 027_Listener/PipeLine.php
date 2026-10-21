@@ -9,7 +9,12 @@ abstract class Pipeline
   function __construct(?Pipeline $parent = null) { $parent?->registerChild($this); }
 
   /** При уничтожении объекта автоматически уведомляем родителя для самоочистки */
-  function __destruct() { $this->parent?->unregisterChild($this, 'destructor'); }
+  function __destruct()
+  {
+    if ($this->isValid())
+      $this->logicError('Pipeline was destroyed without finishing');
+    $this->parent?->unregisterChild($this, 'destructor');
+  }
   
   function isValid() { return !$this->isCancelled && !$this->isEnded ; }
   

@@ -103,87 +103,97 @@ class Loop
   }
 
   /**
+   * Выполняет ровно одну итерацию цикла событий.
+   * Возвращает true, если в цикле ещё остались живые задачи (таймеры или сокеты).
+   */
+  static function tick()
+  {
+    // КРИТИЧНО ДЛЯ UNIX: Проверяем, не пришли ли сигналы PCNTL
+    if(!str_starts_with(PHP_OS, 'WIN') && function_exists('pcntl_signal_dispatch'))
+      pcntl_signal_dispatch();
+
+    // Если во время обработки сигнала вызвали Loop::stop(), выходим
+    if (!self::$running) return false;
+
+    $now = microtime(true);
+    
+    if(($until=self::$timeLimit) && $until<=$now)
+    {
+      Logger::error('Loop: TimeLimit exhausted: ', self::$running)
+        ->Dump(new ReflectionClass(self::class)->getStaticProperties());
+      return false;
+    }
+    if ($limit = self::$watchingTimer)
+    {
+      $until=self::$hardTimeLimit;
+      if ($until)
+      {
+        $until-=$now;
+        if($limit>$until)
+          $limit=$until;
+      }
+      if ($limit > 0)
+        set_time_limit(ceil($limit));
+    }
+
+    // 1. Обрабатываем таймеры, у которых подошло время
+    foreach (self::$timers as $key => $timer)
+      if ($now >= $timer['execute_at'])
+      {
+        unset(self::$timers[$key]);
+        //TODO: workaround: need task manager
+        Loop::async(function() use ($timer) {
+          ($timer['callback'])();
+        });
+      }
+
+    // 2. Проверяем стримы через stream_select
+    if (!empty(self::$readStreams))
+    {
+      $read = array_column(self::$readStreams, 'stream');
+      $write = null;
+      $except = null;
+      
+      // Таймаут для select: берем время до ближайшего таймера или 1 секунду
+      $timeout = 1;
+      if (!empty(self::$timers))
+      {
+        $nextTimer = min(array_column(self::$timers, 'execute_at'));
+        $timeout = max(0, $nextTimer - microtime(true));
+      }
+
+      $tv_sec = (int)$timeout;
+      $tv_usec = (int)(($timeout - $tv_sec) * 1000000);
+
+      // Ждем системного уведомления о готовности потоков
+      // Ошибка stream_select прерывает функцию при получении системного сигнала на Linux,
+      // поэтому глушим ее через @ и проверяем статус
+      if(@stream_select($read, $write, $except, $tv_sec, $tv_usec) > 0)
+        foreach ($read as $stream)
+        {
+        //$key = (int)$stream;
+          $key = get_resource_id($stream);
+          if (isset(self::$readStreams[$key]))
+            (self::$readStreams[$key]['callback'])($stream);
+        }
+    }
+    else
+      usleep(1000); // Маленький сон, если задач нет, чтобы не перегружать CPU
+    
+    // Возвращаем флаг: есть ли ради чего крутить цикл дальше
+    return !empty(self::$timers) || !empty(self::$readStreams);
+  }
+  
+  /**
    * Главный запуск цикла
    */
   static function run(): void
   {
     self::$running = true;
 
-    while (self::$running && (!empty(self::$timers) 
-                           || !empty(self::$readStreams)
-                           || !empty(self::$signalCallbacks)))
-    {
-      // КРИТИЧНО ДЛЯ UNIX: Проверяем, не пришли ли сигналы PCNTL
-      if(!str_starts_with(PHP_OS, 'WIN') && function_exists('pcntl_signal_dispatch'))
-        pcntl_signal_dispatch();
-
-      // Если во время обработки сигнала вызвали Loop::stop(), выходим
-      if (!self::$running) break;
-
-      $now = microtime(true);
-      
-      if(($until=self::$timeLimit) && $until<=$now)
-      {
-        Logger::error('Loop: TimeLimit exhausted: ', self::$running)
-          ->Dump(new ReflectionClass(self::class)->getStaticProperties());
+    while (self::$running)
+      if (!static::tick())
         break;
-      }
-      if ($limit = self::$watchingTimer)
-      {
-        $until=self::$hardTimeLimit;
-        if ($until)
-        {
-          $until-=$now;
-          if($limit>$until)
-            $limit=$until;
-        }
-        if ($limit > 0)
-          set_time_limit(ceil($limit));
-      }
-
-      // 1. Обрабатываем таймеры, у которых подошло время
-      foreach (self::$timers as $key => $timer)
-        if ($now >= $timer['execute_at'])
-        {
-          unset(self::$timers[$key]);
-          Loop::async(function() use ($timer) {
-            ($timer['callback'])();
-          });
-        }
-
-      // 2. Проверяем стримы через stream_select
-      if (!empty(self::$readStreams))
-      {
-        $read = array_column(self::$readStreams, 'stream');
-        $write = null;
-        $except = null;
-        
-        // Таймаут для select: берем время до ближайшего таймера или 1 секунду
-        $timeout = 1;
-        if (!empty(self::$timers))
-        {
-          $nextTimer = min(array_column(self::$timers, 'execute_at'));
-          $timeout = max(0, $nextTimer - microtime(true));
-        }
-
-        $tv_sec = (int)$timeout;
-        $tv_usec = (int)(($timeout - $tv_sec) * 1000000);
-
-        // Ждем системного уведомления о готовности потоков
-        // Ошибка stream_select прерывает функцию при получении системного сигнала на Linux,
-        // поэтому глушим ее через @ и проверяем статус
-        if(@stream_select($read, $write, $except, $tv_sec, $tv_usec) > 0)
-          foreach ($read as $stream)
-          {
-          //$key = (int)$stream;
-            $key = get_resource_id($stream);
-            if (isset(self::$readStreams[$key]))
-              (self::$readStreams[$key]['callback'])($stream);
-          }
-      }
-      else
-        usleep(5000); // Маленький сон, если задач нет, чтобы не перегружать CPU
-    }
   }
 
   // Удобный хелпер для запуска кода в изолированном файбере
