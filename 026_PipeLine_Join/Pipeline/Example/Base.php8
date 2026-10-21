@@ -2,8 +2,7 @@
 include '../../_All.Test.php';
 include 'Data.php';
 
-Loop::setTimeLimit(15, 5);
-//Loop::setTimeLimit(1, 1);
+Loop::setTimeLimit(5, 1);
 
 Loop::async(function() use ($db) {
   $task = 'MyTask';
