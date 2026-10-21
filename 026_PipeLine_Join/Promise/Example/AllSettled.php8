@@ -13,16 +13,13 @@ Loop::async(function() {
   // Метод allSettled() никогда не выбросит исключение в await!
   $report = Promise::allSettled($promises)->await();
 
-  Logger::log('[Process] All services have been polled. Generating report:')();
+  $log = Logger::log('[Process] All services have been polled. Generating report:');
 
-  foreach ($report as $serviceName => $result)
+  foreach ($report as $serviceName => $promise)
   {
-    if ($result['status'] === 'fulfilled')
-      Logger::log("? Balance in {$serviceName}: $" , $result['value']);
+    if ($promise->isFulfilled())
+      $log("  Balance in {$serviceName}: $" , $promise->getValue());
     else // В поле 'reason' лежит Throwable или строка ошибки
-      Logger::log("? Error in {$serviceName}: " , $result['reason']->getMessage());
+      $log("  Error in {$serviceName}: " , $promise->getReason()->getMessage());
   }
 });
-
-// Запускаем Event Loop
-Loop::run();

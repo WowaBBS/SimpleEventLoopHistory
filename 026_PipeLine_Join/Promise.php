@@ -11,14 +11,184 @@ class Promise
 {
   private State $state = State::PENDING;
   private mixed $value = null;
-  private array $handlers = [];
+  
+  function isPending    () { return $this->state === State::PENDING   ; }
+  function isFulfilled  () { return $this->state === State::FULFILLED ; }
+  function isRejected   () { return $this->state === State::REJECTED  ; }
+  function isSettled    () { return !$this->isPending(); }
+  function isNotSettled () { return  $this->isPending(); }
+
+  /**
+   * Синхронное получение значения БЕЗ вызова await().
+   * Выбрасывает исключение, если промис еще не выполнен или выполнен с ошибкой.
+   */
+  public function getValue(): mixed
+  {
+    if (!$this->isFulfilled())
+      throw new \LogicException('Cannot call getValue(), because the promise is in the following state: '.$this->state->name);
+
+    return $this->value;
+  }
+  
+  function getReason():\Throwable
+  {
+    if (!$this->isRejected())
+      throw new \LogicException('Cannot call getReason(), because the promise is in the following state: '.$this->state->name);
+      
+    $value = $this->value;
+    if (!($value instanceof \Throwable))
+      $value = new \RuntimeException((string)$value);
+    
+    return $value;
+  }
+  
+  function then(?callable $onFulfilled = null, ?callable $onRejected = null): self
+  {
+    $deferred = new Deferred();
+
+    $this->addHandler(fn($promise)=>$promise->thenHandler($deferred, $onFulfilled, $onRejected), $deferred->promise());
+
+    if($this->state !== State::PENDING)
+      $this->executeHandlers();
+
+    return $deferred->promise();
+  }
+  
+  function finally(callable $onFinally)
+  {
+    $deferred = new Deferred();
+    
+    $callback = function($promise) use($deferred, $onFinally)
+    {
+      if (!$promise->isSettled()) return;
+      
+      try
+      {
+        $onFinally();
+        $deferred->resolve();
+      }
+      catch(\Throwable $e)
+      {
+        $deferred->reject($e);
+      }
+    };
+    
+    $this->addHandler($callback, $deferred->promise());
+    if (!$this->isPending())
+      $this->executeHandlers();
+      
+    return $deferred->promise();
+  }
+
+  function catch(callable $onRejected): self
+  {
+    return $this->then(null, $onRejected);
+  }
+
+  function resolve(mixed $value=null): void
+  {
+    if (!$this->isPending()) return;
+    
+    if ($value instanceof self)
+    {  // Если другой промис, ждем его
+      $value->then(
+        $this->resolve (...),
+        $this->reject  (...),
+      );
+      return;
+    }
+    
+    $this->state = State::FULFILLED;
+    $this->value = $value;
+    $this->executeHandlers();
+  }
+
+  function reject(mixed $reason): void
+  {
+    if($this->state !== State::PENDING) return;
+    $this->state = State::REJECTED;
+    $this->value = $reason;
+    $this->executeHandlers();
+  }
+
+  function await(): mixed
+  {
+    // Если промис уже выполнен, сразу возвращаем значение (без паузы)
+    if ($this->state === State::FULFILLED) return $this->value;
+    if ($this->state === State::REJECTED) throw $this->getThrowable();
+
+    // Проверяем, находимся ли мы внутри файбера
+    $currentFiber = \Fiber::getCurrent();
+    if($currentFiber === null) //TODO: It's possible
+      throw new \LogicException("The await() method can only be called within a Fiber.");
+
+    // Подписываемся на этот же промис
+    $this->then(
+      // Когда выполнится - возобновляем файбер и передаем результат
+      fn($value) => !$currentFiber->isTerminated() && $currentFiber->resume($value),
+      // Если ошибка - возобновляем файбер, бросая в него исключение
+      fn($exception) => !$currentFiber->isTerminated() && $currentFiber->throw(
+        $exception instanceof \Throwable 
+          ?$exception
+          :new \RuntimeException((string)$exception)
+      )
+    );
+
+    // Приостанавливаем файбер. Управление возвращается в основной поток (Event Loop)
+    // Когда вызовется resume() или throw(), код продолжится со следующей строки
+    return \Fiber::suspend();
+  }
+  
+  /**
+   * Метод finish(). Блокирует текущий файбер до завершения промиса.
+   * Ничего не возвращает (void) и глушит любые исключения внутри себя,
+   * гарантируя просто завершение асинхронного процесса.
+   */
+  public function finish(): void
+  {
+    try
+    {
+      $this->await();
+    }
+    catch (\Throwable)
+    { // Глушим ошибку, задача метода finish - просто дождаться окончания выполнения
+    }
+  }
+
+//****************************************************************
+// Predefined handlers
+
+  private function thenHandler($deferred, $onFulfilled, $onRejected)
+  {
+    if (!$this->isSettled()) return; //Nod is impossible
+    $isOk  = $this->isFulfilled ();
+    $value = $this->value;
+  
+    if($callback = $isOk? $onFulfilled:$onRejected)
+      try
+      {
+        $value = $callback($value);
+        $isOk  = true;
+      }
+      catch (Throwable $e)
+      {
+        $value = $e;
+        $isOk  = false;
+      }
+      
+    if ($isOk)
+      $deferred->resolve($value);
+    else
+      $deferred->reject($value);
+  }
+  
+
+//****************************************************************
+// Abort functional
+
   // Колбэк, который вызывается при отмене для очистки ресурсов (стримов, таймеров)
   private ?\Closure $onCancel = null; 
   
-  function isPending   () { return $this->state === State::PENDING   ; }
-  function isFulfilled () { return $this->state === State::FULFILLED ; }
-  function isRejected  () { return $this->state === State::REJECTED  ; }
-
   // Метод для установки колбэка очистки (используется внутри AsyncFile/httpGet)
   function setOnCancel(callable $callback): self
   {
@@ -51,140 +221,6 @@ class Promise
     $this->reject($exception);
   }
 
-  private function Handler($nextDeferred, $onFulfilled, $onRejected)
-  {
-    try
-    {
-      if($this->state === State::FULFILLED)
-      {
-        if($onFulfilled)
-        {
-          $result = $onFulfilled($this->value);
-          // Если вернулся другой промис, ждем его
-          if($result instanceof self)
-          {
-            $result->then(
-              fn($val) => $nextDeferred->resolve($val),
-              fn($err) => $nextDeferred->reject($err)
-            );
-          }
-          else
-            $nextDeferred->resolve($result);
-        }
-        else
-          $nextDeferred->resolve($this->value);
-      }
-      else if($this->state === State::REJECTED)
-      {
-        if($onRejected)
-        {
-          $result = $onRejected($this->value);
-          $nextDeferred->resolve($result);
-        }
-        else
-        {
-          $nextDeferred->reject($this->value);
-        }
-      }
-    }
-    catch (Throwable $e)
-    {
-      $nextDeferred->reject($e);
-    }
-  }
-  
-  static function keyHandler(object|int|string $key): int|string { return is_object($key)? spl_object_id($key):$key; }
-  
-  function addHandler(callable $handler, null|object|int|string $key = null)
-  {
-    $this->handlers[self::keyHandler($key?? $handler)] = $handler;
-  }
-
-  function removeHandler(object|int|string $key)
-  {
-    unset($this->handlers[self::keyHandler($key)]);
-  }
-  
-  function hasHandler(object|int|string $key)
-  {
-    return array_key_exists(self::keyHandler($key), $this->handlers);
-  }
-  
-  function then(?callable $onFulfilled = null, ?callable $onRejected = null): self
-  {
-    $nextDeferred = new Deferred();
-
-    $this->addHandler(fn($promise)=>$promise->Handler($nextDeferred, $onFulfilled, $onRejected), $nextDeferred->promise());
-
-    if($this->state !== State::PENDING)
-      $this->executeHandlers();
-
-    return $nextDeferred->promise();
-  }
-
-  function catch(callable $onRejected): self
-  {
-    return $this->then(null, $onRejected);
-  }
-
-  function resolve(mixed $value=null): void
-  {
-    if($this->state!==State::PENDING) return;
-    $this->state = State::FULFILLED;
-    $this->value = $value;
-    $this->executeHandlers();
-  }
-
-  function reject(mixed $reason): void
-  {
-    if($this->state !== State::PENDING) return;
-    $this->state = State::REJECTED;
-    $this->value = $reason;
-    $this->executeHandlers();
-  }
-
-  function executeHandlers(): void
-  {
-    $handlers=$this->handlers;
-    if (!$handlers) return;
-    
-    $this->handlers = [];
-    foreach($handlers as $handler)
-      $handler($this);
-    
-    if ($this->handlers) Logger::error('Unexpected behavior, added handlers during executiong')->backtrace();
-  }
-  
-  function getThrowable():?\Throwable { return $this->isRejected()? ($this->value instanceof \Throwable ?$this->value:new \RuntimeException((string)$this->value)):Null; }
-
-  function await(): mixed
-  {
-    // Если промис уже выполнен, сразу возвращаем значение (без паузы)
-    if ($this->state === State::FULFILLED) return $this->value;
-    if ($this->state === State::REJECTED) throw $this->getThrowable();
-
-    // Проверяем, находимся ли мы внутри файбера
-    $currentFiber = \Fiber::getCurrent();
-    if($currentFiber === null) //TODO: It's possible
-      throw new \LogicException("The await() method can only be called within a Fiber.");
-
-    // Подписываемся на этот же промис
-    $this->then(
-      // Когда выполнится - возобновляем файбер и передаем результат
-      fn($value) => !$currentFiber->isTerminated() && $currentFiber->resume($value),
-      // Если ошибка - возобновляем файбер, бросая в него исключение
-      fn($exception) => !$currentFiber->isTerminated() && $currentFiber->throw(
-        $exception instanceof \Throwable 
-          ?$exception
-          :new \RuntimeException((string)$exception)
-      )
-    );
-
-    // Приостанавливаем файбер. Управление возвращается в основной поток (Event Loop)
-    // Когда вызовется resume() или throw(), код продолжится со следующей строки
-    return \Fiber::suspend();
-  }
-
   /**
    * Ограничивает время выполнения текущего промиса.
    * Если промис не успевает выполниться за $seconds секунд, возвращается отклонённый промис.
@@ -204,6 +240,50 @@ class Promise
     // Возвращаем результат этой гонки.
     return self::race([$this, $timeoutDeferred->promise()]);
   }  
+
+//****************************************************************
+// Handler functions
+
+  private array $handlers = [];
+
+  static function keyHandler(object|int|string $key): int|string { return is_object($key)? spl_object_id($key):$key; }
+  
+  function addHandler(callable $handler, null|object|int|string $key = null)
+  {
+    $this->handlers[self::keyHandler($key?? $handler)] = $handler;
+  }
+
+  function removeHandler(object|int|string $key)
+  {
+    unset($this->handlers[self::keyHandler($key)]);
+  }
+  
+  function hasHandler(object|int|string $key)
+  {
+    return array_key_exists(self::keyHandler($key), $this->handlers);
+  }
+  
+  function executeHandlers(): void
+  {
+    $handlers=$this->handlers;
+    if (!$handlers) return;
+    
+    $this->handlers = [];
+    foreach($handlers as $handler)
+      try
+      {
+        $handler($this);
+      }
+      catch (\Throwable $e)
+      {
+        Logger::exception($e, 'Promise unexpected excetion:');
+      }
+    
+    if ($this->handlers) Logger::error('Unexpected behavior, added handlers during executiong')->backtrace();
+  }
+  
+//****************************************************************
+// Promises static functions
   
   /**
    * Ожидает выполнения всех промисов в массиве.
@@ -326,58 +406,44 @@ class Promise
     return $deferred->promise();
   }
 
-  // TODO: join
   /**
    * Ожидает завершения всех промисов (успешного или с ошибкой).
-   * Возвращает массив структур: 
-   * ['status' => 'fulfilled', 'value' => $value] или ['status' => 'rejected', 'reason' => $reason]
+   * Возвращает ИСХОДНЫЙ массив промисов.
    */
-  static function allSettled(array $promises): self
+  static function allSettled(array $promises): self { return self::join($promises); }
+  static function join(array $promises): self
   {
     $deferred = new Deferred();
 
-    if (empty($promises))
+    $remaining = 1; // 1 -- is myself
+    
+    $callback=function($promise) use (&$remaining, $deferred, $promises)
     {
-      $deferred->resolve([]);
-      return $deferred->promise();
+      if ($promise?->isNotSettled()) return;
+      
+      $remaining--;
+      
+      if ($remaining > 0) return;
+      
+      $deferred->resolve($promises); // Возвращаем те же промисы!
+    };
+
+    foreach ($promises as $promise)
+    {
+      if (!($promise instanceof self)) continue;
+      if ($promise->isSettled()) continue;
+      
+      $remaining++;
+      
+      // Нам важен сам факт завершения промиса (settle),
+      // поэтому в оба канала вешаем один и тот же счетчик
+      $promise->addHandler($callback, $deferred->promise());
     }
 
-    $results = [];
-    $remaining = count($promises);
-
-    foreach ($promises as $key => $promise) 
-    {
-      if (!$promise instanceof self)
-      {
-        // Если передали обычное значение - это моментальный успех
-        $promise = (new Deferred())->resolve($promise);
-      }
-
-      // Нам важен сам факт завершения, поэтому логика сбора идентична для обоих колбэков
-      $promise->then(
-        function ($value) use (&$results, &$remaining, $key, $deferred)
-        {
-          $results[$key] = [
-            'status' => 'fulfilled',
-            'value'  => $value
-          ];
-          $remaining--;
-          if ($remaining === 0)
-            $deferred->resolve($results);
-        },
-        function ($reason) use (&$results, &$remaining, $key, $deferred)
-        {
-          $results[$key] = [
-            'status' => 'rejected',
-            'reason' => $reason
-          ];
-          $remaining--;
-          if ($remaining === 0)
-            $deferred->resolve($results);
-        }
-      );
-    }
+    $callback(null); // resolve myself
 
     return $deferred->promise();
   }
+
+//****************************************************************
 }
