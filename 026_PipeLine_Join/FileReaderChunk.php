@@ -33,7 +33,7 @@ class FileReaderChunk
     $isAborted = false;
 
     // Регистрируем логику отмены прямо в промисе!
-    $promise->setOnCancel(function() use (&$isAborted, $stream) {
+    $promise->onReject(function($reason) use (&$isAborted, $stream) {
       $isAborted = true;
       if (is_resource($stream))
         fclose($stream);

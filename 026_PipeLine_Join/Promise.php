@@ -12,7 +12,8 @@ class Promise
   private State $state = State::PENDING;
   private mixed $value = null;
   
-  function isPending    () { return $this->state === State::PENDING   ; }
+  function isLazy       () { return $this->state === State::LAZY      ; }
+  function isPending    () { return $this->state === State::PENDING   || $this->isLazy(); }
   function isFulfilled  () { return $this->state === State::FULFILLED ; }
   function isRejected   () { return $this->state === State::REJECTED  ; }
   function isSettled    () { return !$this->isPending(); }
@@ -48,7 +49,7 @@ class Promise
 
     $this->addHandler(fn($promise)=>$promise->thenHandler($deferred, $onFulfilled, $onRejected), $deferred->promise());
 
-    if($this->state !== State::PENDING)
+    if (!$this->isPending())
       $this->executeHandlers();
 
     return $deferred->promise();
@@ -105,7 +106,8 @@ class Promise
 
   function reject(mixed $reason): void
   {
-    if($this->state !== State::PENDING) return;
+    if (!$this->isPending()) return;
+    
     $this->state = State::REJECTED;
     $this->value = $reason;
     $this->executeHandlers();
@@ -114,8 +116,8 @@ class Promise
   function await(): mixed
   {
     // Если промис уже выполнен, сразу возвращаем значение (без паузы)
-    if ($this->state === State::FULFILLED) return $this->value;
-    if ($this->state === State::REJECTED) throw $this->getThrowable();
+    if ($this->isFulfilled ()) return $this->value;
+    if ($this->isRejected  ()) throw $this->getThrowable();
 
     // Проверяем, находимся ли мы внутри файбера
     $currentFiber = \Fiber::getCurrent();
@@ -156,6 +158,45 @@ class Promise
   }
 
 //****************************************************************
+// Lazy initializer
+
+  /**
+   * Вариант 1: Коллбэк принимает Deferred и аргументы напрямую
+   */
+  public static function lazyDeferred(callable $onCreate, mixed ...$args): self
+  {
+    $promise = new self();
+    $promise->state = State::LAZY;
+    
+    // Капсулируем всё в одну легкую Closure
+    $promise->value = fn($promise)=>$onCreate(new Deferred($promise), ...$args);
+
+    return $promise;
+  }
+
+  /**
+   * Вариант 2: Коллбэк выполняет запрос и возвращает другой Promise
+   */
+  public static function lazy(callable $onCreate, mixed ...$args): self 
+  {
+    $promise = new self();
+    $promise->state = State::LAZY;
+    $promise->value = fn($promise)=>$promise->resolve($onCreate(...$args));
+    return $promise;
+  }
+  
+  private function initializeLazy(): void
+  {
+    $initializer = $this->value;
+    $this->value= null; // Освобождаем память от замыкания
+  
+    // Переводим в PENDING ДО вызова колбэка, чтобы избежать бесконечной рекурсии
+    $this->state = State::PENDING;
+    
+    $initializer($this);
+  }
+
+//****************************************************************
 // Predefined handlers
 
   private function thenHandler($deferred, $onFulfilled, $onRejected)
@@ -186,14 +227,10 @@ class Promise
 //****************************************************************
 // Abort functional
 
-  // Колбэк, который вызывается при отмене для очистки ресурсов (стримов, таймеров)
-  private ?\Closure $onCancel = null; 
-  
   // Метод для установки колбэка очистки (используется внутри AsyncFile/httpGet)
-  function setOnCancel(callable $callback): self
+  function onReject(callable $callback, ?Object $who=null): self
   {
-    if ($this->onCancel) Logger::error('onCancel overwriting')->backTrace();
-    $this->onCancel = \Closure::fromCallable($callback);
+    $this->addHandler(fn($promise)=>$promise->isRejected() && $callback(), $who);
     return $this;
   }
 
@@ -208,17 +245,10 @@ class Promise
    */
   function abort(?string $reason = null): void
   {
-    if ($this->state !== State::PENDING) return;
+    if ($this->isSettled()) return;
 
-    $reason = $reason ?? 'Promise aborted.';
-    $exception = new AbortException($reason);
-
-    // 1. Вызываем очистку системных ресурсов, если она была задана
-    if ($this->onCancel)
-      ($this->onCancel)($exception);
-
-    // 2. Отклоняем промис с ошибкой AbortException
-    $this->reject($exception);
+    // Отклоняем промис с ошибкой AbortException
+    $this->reject(new AbortException($reason ?? 'Promise aborted.'));
   }
 
   /**
@@ -250,6 +280,8 @@ class Promise
   
   function addHandler(callable $handler, null|object|int|string $key = null)
   {
+    if ($this->isLazy()) $this->initializeLazy();
+    
     $this->handlers[self::keyHandler($key?? $handler)] = $handler;
   }
 

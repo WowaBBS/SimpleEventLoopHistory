@@ -3,7 +3,7 @@ class Deferred
 {
   private Promise $promise;
 
-  function __Construct() { $this->promise = new Promise(); }
+  function __Construct($promise = null) { $this->promise = $promise?? new Promise(); }
 
   function Promise(): Promise { return $this->promise; }
 
