@@ -32,19 +32,19 @@ function fetchUserData(int $userId): Promise
 // «апускаем асинхронный контекст через Fiber
 $fiber = new Fiber(function() {
   try {
-    echo "Require user...\n";
+    Logger::log('Require user...');
 
     // ћаги€: код замирает здесь, пока промис не выполнитс€
     $user = fetchUserData(42)->await();
 
-    echo "User received: ".$user['name']."\n";
+    Logger::log('User received: ', $user['name']);
 
     // ћожно делать цепочки зависимых запросов друг за другом:
     // $orders = fetchOrders($user['id'])->await();
   }
   catch (\Throwable $e)
   {
-    echo "Error happend: ".$e->getMessage()."\n";
+    Logger::error('Error happend: ', $e->getMessage());
   }
 });
 

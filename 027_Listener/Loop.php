@@ -197,16 +197,16 @@ class Loop
   }
 
   // Удобный хелпер для запуска кода в изолированном файбере
-  static function async(callable $callback): void
+  static function async(callable $callback, ...$args): void
   {
-    $callback = function() use($callback)
+    $callback = function() use($callback, $args)
     {
       $fiber=Fiber::getCurrent();
       $id=spl_object_id($fiber);
       self::$fibers[$id]=$fiber;
       try
       {
-        $callback();
+        $callback(...$args);
       }
       catch(\Throwable $e)
       {

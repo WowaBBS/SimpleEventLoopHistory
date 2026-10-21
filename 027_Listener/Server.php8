@@ -1,0 +1,49 @@
+<?
+include '_All.Test.php';
+
+// Бизнес-логика обработки HTTP-запроса
+$httpHandler = function(string $rawRequest, int $clientId): string {
+  // Парсим первую строчку HTTP запроса (например: GET /index.html HTTP/1.1)
+  $lines = explode("\r\n", $rawRequest);
+  preg_match('/GET\s+(\/[^\s]*)/', $lines[0], $matches);
+  $path = $matches[1] ?? '/';
+
+  Logger::log("?? [Client #$clientId] Path requested: $path");
+
+  // Сценарий 1: Медленная страница (имитируем тяжелый SQL-запрос)
+  if ($path === '/slow')
+  {
+    Logger::log("? [Client #$clientId] Starting heavy computations for 2 seconds...");
+    
+    // МАГИЯ ФАЙБЕРОВ: файбер этого клиента замирает на 2 секунды.
+    // Но весь сервер НЕ виснет! Другие люди могут заходить на корень '/' без задержек.
+    sleepAsync(2.0)->await();
+    
+    return '<h1>Slow page</h1><p>Data from the asynchronous database was successfully retrieved after 2 seconds!</p>';
+  }
+
+  // Сценарий 2: Асинхронное чтение файла с диска через наш конвейер/обертку
+  if ($path === '/file')
+  {
+    // Допустим, читаем лог-файл (если он есть)
+    // $content = AsyncFile::readAll('server.log')->await();
+    return '<h1>File manager</h1><p>This could have been a non-blocking read of a large file.</p>';
+  }
+
+  // Сценарий 3: Дефолтная быстрая страница
+  return "<h1>Greetings from a custom PHP server! ??</h1>" .
+         "<p>Your connection ID: <b>$clientId</b></p>" .
+         "<p>Try visiting <a href='/slow'>/slow</a> for testing multitasking.</p>";
+};
+
+// Запускаем сервер
+Loop::async(function() use ($httpHandler) {
+  $server = new AsyncServer("tcp://127.0.0.1:8080", $httpHandler);
+  
+  // listen() возвращает Promise, дожидаемся бинда порта
+  $server->listen()->await();
+});
+
+// КРИТИЧНО: Запускаем бесконечный цикл событий, который будет слушать входящие сокеты
+Logger::log('--- Entering the server\'s main event loop ---');
+Loop::run();

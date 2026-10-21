@@ -19,7 +19,7 @@ Loop::async(function() {
   Logger::log('Result: ', strlen($data));
 
   Logger::log('--- Activation via then() ---');
-  $promiseSleep->then(fn() => Logger::logAsync('The lazy sleep is over!'));
+  $promiseSleep->then(fn() => Logger::log('The lazy sleep is over!'));
 });
 
 ?>
