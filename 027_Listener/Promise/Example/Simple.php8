@@ -8,10 +8,10 @@ $deferred->promise()
   ->then(function($value) {
     Logger::log('Sucess: ', $value);
   })
-  ->catch(function(Throwable $e) {
-    Logger::log('Error: ', $e->getMessage());
+  ->catch(function($reason) {
+    Logger::log('Error: ', $reason->getMessage());
   });
 
 // Где-то в асинхронном коде:
-$deferred->resolve("Data received!");
-$deferred->resolve("Data received2!");
+$deferred->resolve('Data received!');
+$deferred->resolve('Data received2!');

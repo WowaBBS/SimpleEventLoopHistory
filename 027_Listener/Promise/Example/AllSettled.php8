@@ -6,7 +6,7 @@ Loop::async(function() {
 
   $promises = [
     'service_card'   => sleepAsync(0.5)->then(fn() => 15000), // Успешно вернет баланс
-    'service_crypto' => sleepAsync(1.0)->then(fn() => throw new \RuntimeException("Service crypts are unavailable.")), // Упадет
+    'service_crypto' => sleepAsync(1.0)->then(fn() => throw new \RuntimeException('Service crypts are unavailable.')), // Упадет
     'service_qiwi'   => sleepAsync(1.5)->then(fn() => 450)   // Успешно вернет баланс
   ];
 
@@ -19,7 +19,7 @@ Loop::async(function() {
   {
     if ($promise->isFulfilled())
       $log("  Balance in {$serviceName}: $" , $promise->getValue());
-    else // В поле 'reason' лежит Throwable или строка ошибки
+    else
       $log("  Error in {$serviceName}: " , $promise->getReason()->getMessage());
   }
 });

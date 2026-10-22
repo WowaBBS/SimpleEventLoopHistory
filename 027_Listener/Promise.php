@@ -1,5 +1,5 @@
 <?
-//TODO: try(func), finally(callback), construct(callback(resolve, reject))
+//TODO: try(func), construct(callback(resolve, reject))
 //   enable, Unhandled Rejections, Promise.denodeify(fn), Promise.nodeify(fn)
 
 
@@ -7,7 +7,7 @@
 //Promise::race([...]) - возвращает результат первого завершившегося промиса.
 //Promise::resolve($value) / Promise::reject($reason) - для быстрого создания уже выполненных или отклоненных промисов.
 
-class Promise
+class Promise extends Promise_Handlers
 {
   private State $state = State::PENDING;
   private mixed $value = null;
@@ -38,7 +38,7 @@ class Promise
       
     $value = $this->value;
     if (!($value instanceof \Throwable))
-      $value = new \RuntimeException((string)$value);
+      $value = new \ReasonException((string)$value);
     
     return $value;
   }
@@ -152,7 +152,7 @@ class Promise
    * Ничего не возвращает (void) и глушит любые исключения внутри себя,
    * гарантируя просто завершение асинхронного процесса.
    */
-  public function finish(): void
+  function finish(): void
   {
     try
     {
@@ -173,10 +173,7 @@ class Promise
   {
     $promise = new self();
     $promise->state = State::LAZY;
-    
-    // Капсулируем всё в одну легкую Closure
     $promise->value = fn($promise)=>$onCreate(new Deferred($promise), ...$args);
-
     return $promise;
   }
 
@@ -258,93 +255,40 @@ class Promise
   }
 
   /**
-   * Ограничивает время выполнения текущего промиса.
+   * Ограничивает время выполнения текущего промиса. Отменяет его по таймауту.
    * Если промис не успевает выполниться за $seconds секунд, возвращается отклонённый промис.
    */
-  function timeout(float $seconds, ?string $exceptionMessage = null): self
-  {
-    // Создаем промис-таймер, который гарантированно упадет через указанное время.
-    // Для создания таймера используем наш Loop::delay.
-    $timeoutDeferred = new Deferred();
-    
-    Loop::delay($seconds, function() use ($timeoutDeferred, $exceptionMessage, $seconds) {
-      $message = $exceptionMessage ?? "The operation exceeded the timeout limit of {$seconds} seconds.";
-      $timeoutDeferred->reject(new \RuntimeException($message));
-    });
+  function timeout(float $seconds, ?string $reason = null): self
+  { //TODO: Rescedule timeout
+    TimeoutException::start($seconds, $reason)->catch($this->reject(...));
+    return $this;
+  }
 
+  /**
+   * Ограничивает время выполнения текущего промиса. Не отменяет его по таймауту.
+   * Если промис не успевает выполниться за $seconds секунд, возвращается отклонённый промис.
+   */
+  function raceTimeout(float $seconds, ?string $reason = null): self
+  {
     // Запускаем гонку между текущим промисом ($this) и промисом-таймером.
     // Возвращаем результат этой гонки.
-    return self::race([$this, $timeoutDeferred->promise()]);
-  }  
+    return self::race([$this, TimeoutException::start($seconds, $reason)]);
+  }
 
 //****************************************************************
 // Handler functions
 
-  private array $handlers = [];
-  static bool $delayedEvents = false;
-
-  static function keyHandler(object|int|string $key): int|string { return is_object($key)? spl_object_id($key):$key; }
-  
   function addHandler(callable $handler, null|object|int|string $key = null)
   {
     if ($this->isLazy()) $this->initializeLazy();
     
-    $this->handlers[self::keyHandler($key?? $handler)] = $handler;
+    parent::addHandler($handler, $key);
     
     if ($this->isPending()) return;
     
     $this->executeHandlers();
   }
 
-  function removeHandler(object|int|string $key)
-  {
-    unset($this->handlers[self::keyHandler($key)]);
-  }
-  
-  function hasHandler(object|int|string $key)
-  {
-    return array_key_exists(self::keyHandler($key), $this->handlers);
-  }
-  
-  function executeHandlers(): void
-  {
-    $handlers = $this->handlers;
-    if (!$handlers) return;
-    $this->handlers = [];
-
-    if (!static::$delayedEvents) { $this->syncExecuteHandlers($handlers); return; }
-
-    $this->asyncExecuteHandlers($handlers);
-  }
-  
-  protected function asyncExecuteHandlers($handlers): void
-  {
-    // Отправляем выполнение обработчиков в Event Loop,
-    // чтобы текущий синхронный код PHP гарантированно завершился!
-    Loop::delay(0, fn()=>$this->syncExecuteHandlers($handlers)); // TODO: Workaround: Need to use task queue
-  }
-  
-  protected function syncExecuteHandlers($handlers): void
-  {
-    foreach($handlers as $handler)
-      try
-      {
-        $handler($this);
-      }
-      catch (\Throwable $e)
-      {
-        Logger::exception($e, 'Promise unexpected excetion:');
-      }
-      
-    $handlers = $this->handlers;
-    if (!$handlers) return;
-    $this->handlers = [];
-    
-    Logger::error('Unexpected behavior, added handlers during executiong')->backtrace();
-    
-    $this->asyncExecuteHandlers($handlers);
-  }
-  
 //****************************************************************
 // Promises static functions
   
@@ -352,161 +296,27 @@ class Promise
    * Ожидает выполнения всех промисов в массиве.
    * Возвращает массив результатов в тех же ключах.
    */
-  static function all(array $promises): self
-  {
-    $deferred = new Deferred();
-    if (empty($promises))
-    {
-      $deferred->resolve([]);
-      return $deferred->promise();
-    }
-
-    $results = [];
-    $remaining = count($promises);
-
-    foreach ($promises as $key => $promise)
-    {
-      // Если передали обычное значение вместо промиса - оборачиваем его
-      if (!$promise instanceof self)
-        $promise = (new Deferred())->resolve($promise);
-
-      $promise->then(
-        function ($value) use (&$results, &$remaining, $key, $deferred)
-        {
-          $results[$key] = $value;
-          $remaining--;
-          
-          if ($remaining === 0)
-            $deferred->resolve($results);
-        },
-        function ($reason) use ($deferred)
-        {
-          // Если упал хотя бы один - реджектим всю пачку (стандартное поведение Promise.all)
-          $deferred->reject($reason);
-        }
-      );
-    }
-
-    return $deferred->promise();
-  }
+  static function all (array $promises): self { return new Promise_Comb_All  ($promises)->process()->promise(); }
   
   /**
    * Возвращает промис, который завершится так же и с тем же результатом,
    * как и первый завершившийся промис из массива (успех или ошибка).
    */
-  static function race(array $promises): self
-  {
-    $deferred = new Deferred();
-
-    if (empty($promises))
-    {
-      // По спецификации пустой race() навечно остается в состоянии PENDING.
-      // Но для удобства можно либо выбросить исключение, либо оставить так.
-      return $deferred->promise();
-    }
-
-    foreach ($promises as $promise)
-    {
-      if (!$promise instanceof self)
-        $promise = (new Deferred())->resolve($promise);
-
-      // Кто первый вызвал метод у deferred, тот и зафиксировал состояние.
-      // Повторные вызовы resolve/reject внутри Deferred просто проигнорируются.
-      $promise->then(
-        fn($value) => $deferred->resolve($value),
-        fn($reason) => $deferred->reject($reason)
-      );
-    }
-
-    return $deferred->promise();
-  }
+  static function race(array $promises): self { return new Promise_Comb_Race ($promises)->process()->promise(); }
 
   /**
    * Возвращает промис, который выполнится успешно, как только выполнится успешно
    * хотя бы один из промисов в массиве.
    * Если все промисы отклонены, возвращает ошибку AggregateException.
    */
-  static function any(array $promises): self
-  {
-    $deferred = new Deferred();
-
-    if (empty($promises))
-    {
-      $deferred->reject(new \RuntimeException("An empty array was passed to Promise::any()"));
-      return $deferred->promise();
-    }
-
-    $errors = [];
-    $remaining = count($promises);
-
-    foreach ($promises as $key => $promise)
-    {
-      if (!$promise instanceof self)
-      {
-        // Обычное значение считается мгновенным успехом
-        $deferred->resolve($promise);
-        return $deferred->promise();
-      }
-
-      $promise->then(
-        function ($value) use ($deferred)
-        {
-          // Первый же успех резолвит общий промис
-          $deferred->resolve($value);
-        },
-        function ($reason) use (&$errors, &$remaining, $key, $deferred)
-        {
-          $errors[$key] = $reason;
-          $remaining--;
-
-          // Если упали ВСЕ промисы, отклоняем общий промис
-          if ($remaining === 0)
-            $deferred->reject(new AggregateException("All promises were rejected", $errors));
-        }
-      );
-    }
-
-    return $deferred->promise();
-  }
-
+  static function any (array $promises): self { return new Promise_Comb_Any  ($promises)->process()->promise(); }
+  
   /**
    * Ожидает завершения всех промисов (успешного или с ошибкой).
    * Возвращает ИСХОДНЫЙ массив промисов.
    */
   static function allSettled(array $promises): self { return self::join($promises); }
-  static function join(array $promises): self
-  {
-    $deferred = new Deferred();
-
-    $remaining = 1; // 1 -- is myself
-    
-    $callback=function($promise) use (&$remaining, $deferred, $promises)
-    {
-      if ($promise?->isNotSettled()) return;
-      
-      $remaining--;
-      
-      if ($remaining > 0) return;
-      
-      $deferred->resolve($promises); // Возвращаем те же промисы!
-    };
-
-    foreach ($promises as $promise)
-    {
-      if (!($promise instanceof self)) continue;
-      if ($promise->isSettled()) continue;
-      
-      $remaining++;
-      
-      // Нам важен сам факт завершения промиса (settle),
-      // поэтому в оба канала вешаем один и тот же счетчик
-      $promise->addHandler($callback, $deferred->promise());
-    }
-
-    $callback(null); // resolve myself
-
-    return $deferred->promise();
-  }
+  static function join(array $promises): self { return new Promise_Comb_Join ($promises)->process()->promise(); }
 
 //****************************************************************
 }

@@ -19,7 +19,7 @@ Loop::async(function() {
   // Имитируем отмену всей группы задач через 1 секунду
   Loop::delay(1, function() use ($controller) {
     Logger::log('[Event] Cancel the entire group of tasks!');
-    $controller->abort("Bulk cancellation by administrator.");
+    $controller->abort('Bulk cancellation by administrator.');
   });
 
   // Функция для безопасного await
@@ -36,9 +36,9 @@ Loop::async(function() {
   };
 
   // Запускаем ожидание
-  $safeAwait($p1, "File 1");
-  $safeAwait($p2, "File 2");
-  $safeAwait($p3, "File 3");
+  $safeAwait($p1, 'File 1');
+  $safeAwait($p2, 'File 2');
+  $safeAwait($p3, 'File 3');
 });
 
 Loop::run();

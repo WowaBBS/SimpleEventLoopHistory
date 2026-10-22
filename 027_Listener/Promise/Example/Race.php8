@@ -5,12 +5,10 @@ Loop::async(function() {
   Logger::log('[Case 1] Do long reqest with timeout 1.5 sec...');
 
   // Имитируем запрос, который длится 3 секунды
-  $requestPromise = sleepAsync(3.0)->then(fn() => "Data from server");
+  $requestPromise = sleepAsync(3.0)->then(fn() => 'Data from server');
 
   // Создаем промис-таймаут, который упадет через 1.5 секунды
-  $timeoutPromise = sleepAsync(1.5)->then(function() {
-    throw new \RuntimeException("Time request is out!");
-  });
+  $timeoutPromise = TimeoutException::start(1.5, 'Time request is out!');
 
   try
   {
@@ -18,7 +16,7 @@ Loop::async(function() {
     $result = Promise::race([$requestPromise, $timeoutPromise])->await();
     Logger::log('Sucess: ', $result);
   }
-  catch (\Throwable $e)
+  catch (TimeoutException $e)
   {
     // Сработает таймаут, так как 1.5с < 3.0с
     Logger::error('Error race: ', $e->getMessage()); 

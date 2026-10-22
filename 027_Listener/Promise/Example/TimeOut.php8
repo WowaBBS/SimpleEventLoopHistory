@@ -8,7 +8,7 @@ function longApiCall(): Promise
   
   // Ответ придет только через 3 секунды
   Loop::delay(3.0, function() use ($deferred) {
-    $deferred->resolve("Sucessfuly ansver from API ??");
+    $deferred->resolve('Sucessfuly ansver from API ??');
   });
   
   return $deferred->promise();
@@ -24,7 +24,7 @@ Loop::async(function() {
     $result = longApiCall()->timeout(1.0)->await();
     Logger::log('[Process 1] Received: ', $result);
   }
-  catch (\Throwable $e) 
+  catch (TimeoutException $e) 
   {
     // Сработает этот блок, так как 1.0с < 3.0с
     Logger::error('[Process 1] Error: ', $e->getMessage());
@@ -42,12 +42,12 @@ Loop::async(function() {
   {
     // Можно кастомизировать текст ошибки при желании
     $result = longApiCall()
-      ->timeout(4.0, "API works too slow, cancel!")
+      ->timeout(4.0, 'API works too slow, cancel!')
       ->await();
         
     Logger::log('[Process 2] Sucess! Received: ', $result);
   }
-  catch (\Throwable $e)
+  catch (TimeoutException $e) 
   {
     Logger::Error('[Process 2] Error: ', $e->getMessage());
   }
