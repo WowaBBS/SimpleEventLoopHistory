@@ -4,7 +4,10 @@ include 'Data.php';
 
 Loop::setTimeLimit(9, 1); //Added 5+4 seconds!!!
 
-Loop::async(function() use ($db) {
+Promise::$delayedEvents = !true;
+
+//Loop::async(function() use ($db) {
+(function() use ($db) {
   $task = 'MyTask';
 
   Logger::log('--- START TEST ---');
@@ -74,4 +77,6 @@ Loop::async(function() use ($db) {
   {
     Logger::log('--- END OF TEST ---');
   }
-});
+})();
+//});
+Logger::log('-- End --');

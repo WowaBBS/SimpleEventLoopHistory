@@ -2,7 +2,8 @@
 include '../../_All.Test.php';
 include 'Data.php';
 
-Loop::async(function() use ($db) {
+//Loop::async(function() use ($db) {
+(function() use ($db) {
   Logger::log('[Pipeline] Test skip limit...');
 
   $promise = Pipeline::from($db->queryAsyncStream('SELECT * FROM TableA'))
@@ -17,4 +18,7 @@ Loop::async(function() use ($db) {
     ->collect();
 
   $promise->await();
-});
+  
+  Logger::log('-- End --');
+})();
+//});

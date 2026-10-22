@@ -4,7 +4,8 @@ include 'Data.php';
 
 Loop::setTimeLimit(9, 1); //Added 5+4 seconds!!!
 
-Loop::async(function() use ($db) {
+//Loop::async(function() use ($db) {
+(function() use ($db) {
   // 1. Создаем корневой пайплайн
   [$p1, $p2]=Pipeline::from($db->queryAsyncStream('SELECT * FROM TableA'))
     ->fork(function($Pipeline){
@@ -38,4 +39,5 @@ Loop::async(function() use ($db) {
   {
     Logger::log('Consumer 2 failed: ', $e->getMessage());
   }
-});
+})();
+//});

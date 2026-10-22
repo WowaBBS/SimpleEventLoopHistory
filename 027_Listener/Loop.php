@@ -4,7 +4,7 @@ class Loop
   private static array $timers             = [];
   private static array $fibers             = [];
   private static array $readStreams        = [];
-  private static bool  $running            = false;
+  private static bool  $running            = true;
   private static array $signalCallbacks    = [];
   private static bool  $signalsInitialized = false;
   
@@ -106,7 +106,7 @@ class Loop
       pcntl_signal_dispatch();
 
     // Если во время обработки сигнала вызвали Loop::stop(), выходим
-    if (!self::$running) return false;
+  //if (!self::$running) return false;
 
     $now = microtime(true);
     
@@ -165,8 +165,7 @@ class Loop
    */
   static function run(): void
   {
-    self::$running = true;
-
+  //self::$running = true;
     while (self::$running)
       if (!static::tick())
         break;
@@ -277,8 +276,9 @@ class Loop
   {
     if (!count(static::$lostObjects)) return;
     Logger::error('Lost objects:');
+    $Idx=0;
     foreach (static::$lostObjects as $object=>$backtrace)
-      Logger::log('  ', 'object:')->dump($object)->setstack($backtrace);
+      Logger::log('  ', $Idx++, '=>')->dump($object)->setstack($backtrace);
     Logger::log();
   }
   

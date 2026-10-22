@@ -56,10 +56,9 @@ class FileReaderExec
   
   function OnRead($Idx, $stream, $Finish=false)
   {
-    global $Loader;
     $Stat=FStat($stream);
     $Meta=stream_get_meta_data($stream);
-    $Loader->Log('Debug', 'OnRead ',$Idx,' Stat.Size=', $Stat['size'], ' Meta.unread_bytes=', $Meta['unread_bytes']);//->Dump($Stat);
+    Logger::debug('OnRead ',$Idx,' Stat.Size=', $Stat['size'], ' Meta.unread_bytes=', $Meta['unread_bytes']);//->Dump($Stat);
   //Echo '{Debug} OnRead Stat.Size=', $Stat['size'], "\n";
     $chunkSize=Min($Stat['size'], 108192);
     $Len=0;
@@ -67,7 +66,7 @@ class FileReaderExec
     {
       $chunk = fread($stream, $chunkSize);
       if(!Is_String($chunk)) break;
-      $Loader->Log('Debug', '  chunk: ', StrLen($chunk));
+      Logger::debug('  chunk: ', StrLen($chunk));
       if($chunk==='') break;
       $Len+=StrLen($chunk);
       $this->Received[$Idx][]=$chunk;
@@ -76,26 +75,23 @@ class FileReaderExec
     }
       
   //If($Len)
-    $Loader->Log('Debug', 'OnRead ', $Idx, ' Len=', $Len, ' Chunk', !Is_String($chunk)||!StrLen($chunk)? [$chunk]:StrLen($chunk));
+    Logger::Debug('OnRead ', $Idx, ' Len=', $Len, ' Chunk', !Is_String($chunk)||!StrLen($chunk)? [$chunk]:StrLen($chunk));
     
-    //Echo '{Debug} OnRead ', $Idx, ' ', $Len, "\n";
-     
     //If(Is_String($chunk)) Return;
     
     //If($chunk !== false && !feof($stream)) Return; //$chunk === '' || $chunk === false)
-     if($chunk===false) $Loader->Log('Debug', 'OnRead ', $Idx, ' Chunk=false');
-     if(feof($stream)) $Loader->Log('Debug', 'OnRead ', $Idx, ' Eof');
-     if($chunk==='') $Loader->Log('Debug', 'OnRead ', $Idx, ' Empty');
+     if($chunk===false) Logger::debug('OnRead ', $Idx, ' Chunk=false');
+     if(feof($stream)) Logger::debug('OnRead ', $Idx, ' Eof');
+     if($chunk==='') Logger::debug('OnRead ', $Idx, ' Empty');
      if($Finish) return;
      $this->CheckFinish();
   }
   
   function CheckFinish()
   {
-    Global $Loader;
     // Проверяем, не завершился ли процесс
     $status = proc_get_status($this->process);
-    $Loader->Log('Debug', 'Check status: ', $status['running']);
+    Logger::debug('Check status: ', $status['running']);
     if($status['running']) return;
     Loop::removeReadStream($this->pipes[1]);
     Loop::removeReadStream($this->pipes[2]);
@@ -104,7 +100,7 @@ class FileReaderExec
     fclose($this->pipes[1]);
     fclose($this->pipes[2]);
     $this->pipes=[0,0];
-    $Loader->Log('Debug', 'Exec Finish');
+    Logger::debug('Exec Finish');
     $data  = Implode($this->Received[1]);
     $error = Implode($this->Received[2]);
     $this->Received=[];

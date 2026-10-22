@@ -6,7 +6,8 @@ $task = 'MyTask';
 
 Loop::setTimeLimit(2, 1);
 
-Loop::async(function() use ($db, $task) {
+//Loop::async(function() use ($db, $task) {
+(function() use ($db, $task) {
   try
   {
     Logger::log('[Pipeline] Launching heavy data pipeline...');
@@ -48,4 +49,5 @@ Loop::async(function() use ($db, $task) {
   {
     Logger::error('A failure occurred: ', $e->getMessage());
   }
-});
+})();
+//});
