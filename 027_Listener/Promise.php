@@ -18,6 +18,8 @@ class Promise extends Promise_Handlers
   function isRejected   () { return $this->state === State::REJECTED  ; }
   function isSettled    () { return !$this->isPending(); }
   function isNotSettled () { return  $this->isPending(); }
+  
+  function __construct() { Loop::register($this); }
 
   /**
    * Синхронное получение значения БЕЗ вызова await().
@@ -38,7 +40,10 @@ class Promise extends Promise_Handlers
       
     $value = $this->value;
     if (!($value instanceof \Throwable))
+    {
       $value = new \ReasonException((string)$value);
+      static::emptyTrace($value); //Beacause of old
+    }
     
     return $value;
   }
@@ -98,10 +103,13 @@ class Promise extends Promise_Handlers
     $this->value = $value;
     $this->executeHandlers();
   }
-
+  
   function reject(mixed $reason): void
   {
     if (!$this->isPending()) return;
+    
+    if ($reason instanceof \Throwable )
+      static::optimizeTrace($reason);
     
     $this->state = State::REJECTED;
     $this->value = $reason;
@@ -158,8 +166,9 @@ class Promise extends Promise_Handlers
     {
       $this->await();
     }
-    catch (\Throwable)
+    catch (\Throwable $e)
     { // Глушим ошибку, задача метода finish - просто дождаться окончания выполнения
+      Logger::exception($e);
     }
   }
 
@@ -226,7 +235,6 @@ class Promise extends Promise_Handlers
       $deferred->reject($value);
   }
   
-
 //****************************************************************
 // Abort functional
 
@@ -317,6 +325,50 @@ class Promise extends Promise_Handlers
    */
   static function allSettled(array $promises): self { return self::join($promises); }
   static function join(array $promises): self { return new Promise_Comb_Join ($promises)->process()->promise(); }
+
+//****************************************************************
+// Memory leak optimize
+
+  static function optimizeTrace($e)
+  {
+    $trace = $e->getTrace();
+    if(!$trace) return;
+    if($trace[0]['opt']?? false) return;
+    $trace[0]['opt']=true;
+    foreach ($trace as &$item)
+    {
+    //if (!array_key_exists('args', $item))
+      $args=&$item['args'];
+      foreach ($args as &$arg)
+        switch (gettype($arg))
+        {
+        case 'NULL'    :
+        case 'boolean' :
+        case 'integer' :
+        case 'double'  : break;
+        case 'string'  :
+          if (strlen($arg)>256)
+            $arg='string'; //('.strlen($arg).')';
+          break;
+        case 'array'   : $arg='array'; break;
+        case 'object'  : $arg=get_class($arg); break;
+        default: $arg=gettype($arg);
+        }
+    }
+  //Logger::debug('stack:')->setStack($trace);
+    static::overrideTrace($e, $trace);
+  }
+  
+  static function emptyTrace($e) { static::overrideTrace($e, []); }
+  
+  static function overrideTrace($e, $trace)
+  {
+    if(!($e instanceof \Throwable )) return;
+    static $traceExc=new ReflectionProperty(\Exception ::class, 'trace');
+    static $traceErr=new ReflectionProperty(\Error     ::class, 'trace');
+    if($e instanceof \Exception ) $traceExc->setValue($e, $trace);
+    if($e instanceof \Error     ) $traceExc->setValue($e, $trace);
+  }
 
 //****************************************************************
 }

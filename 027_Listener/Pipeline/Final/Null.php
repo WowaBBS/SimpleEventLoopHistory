@@ -11,6 +11,7 @@ class Pipeline_Final_Null extends Pipeline
   function abortPipeline($reason='abort'): void {}
 
   protected function isEndpoint(): bool { return true; }
+  protected static function isSingleton(): bool { return true; }
   
   // Получает данные ИЗ ЕМИТА предыдущего пайплайна, сохраняя стейт
   protected function onProcess(Pipeline_Event $type, mixed $payload): void { $this->isEnded = false; } //TODO: Workaround

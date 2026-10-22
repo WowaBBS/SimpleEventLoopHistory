@@ -10,11 +10,13 @@ class Promise_Comb_All extends Promise_Comb_Base
     foreach ($this->list as &$item)
     {
       if (!($item instanceof Promise)) continue;
+      
       if ($item->isRejected())
       {
         $this->reject($item->getReason());
         return $this;
       }
+      
       if ($item->isFulfilled())
       {
         $item = $item->value; //getValue()

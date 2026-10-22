@@ -3,15 +3,14 @@
 abstract class Pipeline
 {
   protected bool $isCancelled = false; // Был ли этот конкретный шаг отменен
-  protected bool $isProtected = false; // Защищено ли это звено от принудительной отмены (например, для записи критических логов/БД)
   protected bool $isEnded     = false;
 
-  function __construct(?Pipeline $parent = null) { $parent?->registerChild($this); }
+  function __construct(?Pipeline $parent = null) { if(!static::isSingleton()) Loop::register($this); $parent?->registerChild($this); }
 
   /** При уничтожении объекта автоматически уведомляем родителя для самоочистки */
   function __destruct()
   {
-    if ($this->isValid())
+    if ($this->isValid() && !$this->isSingleton())
       $this->logicError('Pipeline was destroyed without finishing');
     $this->parent?->unregisterChild($this, 'destructor');
   }
@@ -29,7 +28,10 @@ abstract class Pipeline
     $this->unlockPromise()?->await();
     $this->setProcessing(true);
     if ($type->isEnd())
+    {
       $this->isEnded = true;
+      $this->setProtected(false);
+    }
 
     try
     {
@@ -57,6 +59,7 @@ abstract class Pipeline
 
   /** Защищает эндпоинты от ложного каскадного авто-удаления */
   protected function isEndpoint(): bool { return false; }
+  protected static function isSingleton(): bool { return false; }
 
   // --- ФАБРИКА ОПЕРАТОРОВ (Fluent API) ---
   
@@ -64,7 +67,7 @@ abstract class Pipeline
    * Делает текущее звено защищенным от отмены.
    * Всё, что выше него, не прервется, пока данные не пройдут через этот шаг.
    */
-  function uncancelable (                           ): self    { $this->isProtected = true; return $this; }
+  function uncancelable (                           ): self    { $this->setProtected(true); return $this; }
   function fork         (callable $setup            ): mixed   { return $setup($this)?? $this; }
 
   /** Создает конвейер из любого итерируемого источника (генератора) */
@@ -209,6 +212,7 @@ abstract class Pipeline
     
     $this->isCancelled = true;
     $this->onAbort();
+    $this->setProtected(false);
 
     // Если есть родитель, уведомляем его, что мы отписались
     $this->parent?->unregisterChild($this, $reason);
@@ -225,6 +229,23 @@ abstract class Pipeline
     if ($this->isEndpoint()) return;
     
     $this->abortPipeline($reason);
+  }
+
+//****************************************************************
+// Protection
+
+  protected bool $isProtected = false; // Защищено ли это звено от принудительной отмены (например, для записи критических логов/БД)
+  
+  protected static array $protected=[];
+  
+  function setProtected($v)
+  {
+    $this->isProtected = $v;
+    $id = spl_object_id($this);
+    if ($v)
+      self::$protected[$id] = $this;
+    else
+      unset(self::$protected[$id]);
   }
 
 //****************************************************************

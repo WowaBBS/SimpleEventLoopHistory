@@ -1,11 +1,11 @@
 <?
+/**
+ * Handler functions
+ */
 class Promise_Handlers
 {
-//****************************************************************
-// Handler functions
-
   private array $handlers = [];
-  static bool $delayedEvents = false;
+  static bool $delayedEvents = true;
 
   static function keyHandler(object|int|string $key): int|string { return is_object($key)? spl_object_id($key):$key; }
   
@@ -37,9 +37,10 @@ class Promise_Handlers
     if (!$handlers) return;
     $this->handlers = [];
 
-    if (!static::$delayedEvents) { $this->syncExecuteHandlers($handlers); return; }
-
-    $this->asyncExecuteHandlers($handlers);
+    if (static::$delayedEvents)
+      $this->asyncExecuteHandlers($handlers);
+    else
+      $this->syncExecuteHandlers($handlers);
   }
   
   protected function asyncExecuteHandlers($handlers): void
@@ -69,6 +70,4 @@ class Promise_Handlers
     
     $this->asyncExecuteHandlers($handlers);
   }
-  
-//****************************************************************
 };

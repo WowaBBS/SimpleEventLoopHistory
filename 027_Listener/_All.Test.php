@@ -1,7 +1,8 @@
 <?
 for($F=__FILE__; $F;) if(@include($F=DirName($F)).'/Using.php') break;
   
-$Loader->GetLogger()->ScriptLog();
+$Logger=$Loader->GetLogger();
+$Logger->ScriptLog();
 
 C_Debug_Template::$Closure_Use    =false;
 C_Debug_Template::$Closure_This   =false;

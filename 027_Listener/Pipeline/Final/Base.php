@@ -6,7 +6,10 @@ abstract class Pipeline_Final_Base extends Pipeline
   function __construct(Pipeline $parent)
   {
     $this->deferred = new Deferred();
-    $this->deferred->promise()->onReject($this->abortPipeline(...), $this);
+    
+    $weak=\WeakReference::create($this); // Optimize memory leak
+    $this->deferred->promise()->onReject(fn()=>$weak->get()?->abortPipeline(), $this);
+  //$this->deferred->promise()->onReject($this->abortPipeline(...), $this);
 
     parent::__construct($parent);
     

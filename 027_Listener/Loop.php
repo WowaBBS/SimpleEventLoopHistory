@@ -7,17 +7,10 @@ class Loop
   private static bool  $running            = false;
   private static array $signalCallbacks    = [];
   private static bool  $signalsInitialized = false;
-  private static float $timeLimit          =  0;
-  private static float $hardTimeLimit      =  0;
-  private static float $watchingTimer      = 10;
   
-  static function setTimeLimit(float $seconds, float $hard=10)
-  {
-    self::$timeLimit = microtime(true) + $seconds;
-    self::$hardTimeLimit = $hard > 0? self::$timeLimit+$hard:0;
-    set_time_limit(ceil(self::$hardTimeLimit));
-  }
-
+  static function init() { static::checkLostInit(); }
+  static function dispose() { static::checkLost(); }
+  
   // Добавить отложенную задачу (таймер)
   static function delay(float $seconds, callable $callback): void
   {
@@ -117,24 +110,7 @@ class Loop
 
     $now = microtime(true);
     
-    if(($until=self::$timeLimit) && $until<=$now)
-    {
-      Logger::error('Loop: TimeLimit exhausted: ', self::$running)
-        ->Dump(new ReflectionClass(self::class)->getStaticProperties());
-      return false;
-    }
-    if ($limit = self::$watchingTimer)
-    {
-      $until=self::$hardTimeLimit;
-      if ($until)
-      {
-        $until-=$now;
-        if($limit>$until)
-          $limit=$until;
-      }
-      if ($limit > 0)
-        set_time_limit(ceil($limit));
-    }
+    static::watchingTick($now);
 
     // 1. Обрабатываем таймеры, у которых подошло время
     foreach (self::$timers as $key => $timer)
@@ -221,4 +197,106 @@ class Loop
     // Запуск файбера. Если внутри будет Fiber::suspend(), управление вернется сюда
     $fiber->start(); 
   }
+
+//****************************************************************
+// Watching timer
+
+  private static float $timeLimit          =  0;
+  private static float $hardTimeLimit      =  0;
+  private static float $watchingTimer      = 10;
+  
+  static function setTimeLimit(float $seconds, float $hard=10)
+  {
+    self::$timeLimit = microtime(true) + $seconds;
+    self::$hardTimeLimit = $hard > 0? self::$timeLimit+$hard:0;
+    set_time_limit(ceil(self::$hardTimeLimit));
+  }
+
+  static function watchingTick($now)
+  {
+    if(($until=self::$timeLimit) && $until<=$now)
+    {
+      Logger::error('Loop: TimeLimit exhausted: ', self::$running)
+        ->Dump(new ReflectionClass(self::class)->getStaticProperties());
+      return false;
+    }
+    
+    if ($limit = self::$watchingTimer)
+    { //TODO: period 1 second
+      $until=self::$hardTimeLimit;
+      if ($until)
+      {
+        $until-=$now;
+        if($limit>$until)
+          $limit=$until;
+      }
+      if ($limit > 0)
+        set_time_limit(ceil($limit));
+    }
+  }
+
+//****************************************************************
+// Memory leak detector
+
+  private static bool    $catchLostObjects =true;
+  private static WeakMap $lostObjects      ;
+  
+  static function checkLostInit()
+  {
+    static::$lostObjects=new WeakMap();
+  }
+  
+  static function checkLost()
+  {
+    static::checkLostFibers();
+    static::checkLostTimers();
+    static::checkLostObjects();
+  }
+  
+  static function checkLostFibers()
+  {
+    if (!static::$timers) return;
+    Logger::error('Lost fibers:');
+    foreach (static::$fibers as $fiber)
+      Logger::log('  ', $fiber);
+    Logger::log();
+    static::$timers=[];
+  }
+  
+  static function checkLostTimers()
+  {
+    if (!static::$timers) return;
+    Logger::error('Lost timers:');
+    foreach (static::$timers as $timer)
+      Logger::log('  ', $timer);
+    Logger::log();
+    static::$timers=[];
+  }
+  
+  static function checkLostObjects()
+  {
+    if (!count(static::$lostObjects)) return;
+    Logger::error('Lost objects:');
+    foreach (static::$lostObjects as $object=>$backtrace)
+      Logger::log('  ', 'object:')->dump($object)->setstack($backtrace);
+    Logger::log();
+  }
+  
+  
+  static function register($object)
+  {
+    if (!static::$catchLostObjects) return;
+    
+    static::$lostObjects[$object]=debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+  }
+  
+  static function unregister($object)
+  {
+    unset(static::$lostObjects[$object]);
+  }
+
+//****************************************************************
 }
+
+Loop::init();
+register_shutdown_function(Loop::dispose(...));
