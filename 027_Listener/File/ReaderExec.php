@@ -31,7 +31,7 @@ class FileReaderExec
 
     // Команда для безопасного вывода файла в stdout
   //$cmd = [PHP_BINARY, '-r', 'echo file_get_contents($argv[1]);', '--', $filename, $chunkSize];
-    $cmd = [PHP_BINARY, '-f', __DIR__.'/FileReaderProc.php', '--', $filename, $chunkSize];
+    $cmd = [PHP_BINARY, '-f', __DIR__.'/ReaderProc.php', '--', $filename, $chunkSize];
 
     $descriptors = [
       1 => ["pipe", "w"], // stdout дочернего процесса

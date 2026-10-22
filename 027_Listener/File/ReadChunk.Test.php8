@@ -1,15 +1,14 @@
 <?
-include '_All.Test.php';
+include '../_All.Test.php';
 
-set_time_limit(20);
-
+// 1. Создадим тестовый относительно "большой" файл (для примера)
 $largeFileName=LargeFile();
 
 // 2. Процесс 1: Быстрый таймер, который должен тикать без задержек
 Loop::async(function() {
   for ($i = 1; $i <= 5; $i++)
   {
-    Logger::log('[Timer] tick ', $i);
+    Logger::log('[Timer] tick', $i);
     sleepAsync(0.1)->await(); // спим 100мс
   }
 });
@@ -23,7 +22,7 @@ Loop::async(function() {
   global $largeFileName;
   
   // Вызываем нашу обертку. Код замирает, но Event Loop продолжает крутиться!
-  $content = FileReaderExec::readAll($largeFileName, 16384)->await(); 
+  $content = FileReaderChunk::readAll($largeFileName, 16384)->await(); 
   
   $endTime = microtime(true);
   $duration = round(($endTime - $startTime) * 1000, 2);
