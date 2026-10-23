@@ -17,14 +17,14 @@ Loop::async(function() {
 Loop::async(function() {
   Logger::log('[File] Starting async file reading...');
   
-  $startTime = microtime(true);
+  $startTime = Loop::getTime();
   
   global $largeFileName;
   
   // Вызываем нашу обертку. Код замирает, но Event Loop продолжает крутиться!
   $content = FileReaderChunk::readAll($largeFileName, 16384)->await(); 
   
-  $endTime = microtime(true);
+  $endTime = Loop::getTime();
   $duration = round(($endTime - $startTime) * 1000, 2);
   
   Logger::log('[File] Sucessfuly read ', strlen($content), ' bytes for {', $duration, '} ms!');

@@ -5,7 +5,13 @@ abstract class Pipeline
   protected bool $isCancelled = false; // Был ли этот конкретный шаг отменен
   protected bool $isEnded     = false;
 
-  function __construct(?Pipeline $parent = null) { if(!static::isSingleton()) Loop::register($this); $parent?->registerChild($this); }
+  function __construct(?Pipeline $parent = null)
+  {
+    Stat::$pipeline->add();
+    if(!static::isSingleton())
+      Loop::register($this);
+    $parent?->registerChild($this);
+  }
 
   /** При уничтожении объекта автоматически уведомляем родителя для самоочистки */
   function __destruct()
@@ -13,6 +19,7 @@ abstract class Pipeline
     if ($this->isValid() && !$this->isSingleton())
       $this->logicError('Pipeline was destroyed without finishing');
     $this->parent?->unregisterChild($this, 'destructor');
+    Stat::$pipeline->remove();
   }
   
   function isValid() { return !$this->isCancelled && !$this->isEnded ; }

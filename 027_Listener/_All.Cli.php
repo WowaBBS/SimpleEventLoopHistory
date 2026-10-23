@@ -1,14 +1,14 @@
 <?
 (function() {
-  $startTime = microtime(true);
-  $globalsKeysInitial=Array_Flip(Array_Keys($GLOBALS));
+  //$argv, $argc, $_GET, $_POST, $_COOKIE, $_FILES, $_ENV, $_REQUEST, $_SERVER
+  $globalsKeysInitial = Array_Flip(Array_Keys($GLOBALS));
 
-  register_shutdown_function(function() use($startTime, $globalsKeysInitial){
+  register_shutdown_function(function() use($globalsKeysInitial){
     // Запускаем Цикл Событий
     Loop::run();
     
-    $globalsKeys=Array_Reverse(Array_Keys($GLOBALS));
-    $removed=[];
+    $globalsKeys = Array_Reverse(Array_Keys($GLOBALS));
+    $removed = [];
     foreach ($globalsKeys As $key)
       if (!array_key_exists($key, $globalsKeysInitial))
       {
@@ -17,13 +17,14 @@
       }
     if ($removed)
       Logger::debug('Global variables are evil: $', implode(', $', $removed));
+  //if ($globalsKeysInitial)
+  //  Logger::debug('Ignore global variables: $', implode(', $', array_keys($globalsKeysInitial)));
     
-    $endTime = microtime(true);
-  
     // Вычисляем общее время выполнения
-    $executionTime = $endTime - $startTime;
+    $executionTime = Loop::getTime();
   
-    Logger::log('It took ', Round($executionTime, 2), ' seconds');
+    Logger::log('It took ', round($executionTime, 2), ' seconds');
+    Stat::debug();
   
     \WLib\Object\C_Loader::Get()->Dispose();
   });

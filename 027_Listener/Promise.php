@@ -19,7 +19,38 @@ class Promise extends Promise_Handlers
   function isSettled    () { return !$this->isPending(); }
   function isNotSettled () { return  $this->isPending(); }
   
-  function __construct() { Loop::register($this); }
+  function __construct(mixed $arg = null)
+  {
+    Loop::register($this);
+    Stat::$promise->add();
+    if ($arg === null) return;
+  //if (!is_callable($arg))
+    if (!is_object($arg))
+    {
+      $this->resolve($arg);
+      return;
+    }
+    if ($arg instanceof Self)
+    {
+      $arg->then( // TODO: handler
+        $this->resolve (...),
+        $this->reject  (...),
+      );
+    }
+    if ($arg instanceof \Throwable)
+    {
+      $this->reject($arg);
+      return;
+    }
+    $this->resolve($arg);
+  }
+  
+  function __destruct()
+  {
+    Stat::$promise->remove();
+    if ($this->isNotSettled())
+      Logger::error('Destroing not settled promise:')->dump($this);
+  }
 
   /**
    * Синхронное получение значения БЕЗ вызова await().

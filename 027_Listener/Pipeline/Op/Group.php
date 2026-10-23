@@ -12,7 +12,7 @@ class Pipeline_Op_Group extends Pipeline_Base
   {
     $this->count     = $count;
     $this->timeout   = $timeout;
-    $this->lastFlush = microtime(true);
+    $this->lastFlush = Loop::getTime();
     
     parent::__construct($parent);
 
@@ -47,7 +47,7 @@ class Pipeline_Op_Group extends Pipeline_Base
     $chunk=$this->chunk;
     if (empty($chunk)) return;
     $this->chunk = [];
-    $this->lastFlush = microtime(true);
+    $this->lastFlush = Loop::getTime();
     $this->emit($chunk);
   }
 
@@ -63,7 +63,7 @@ class Pipeline_Op_Group extends Pipeline_Base
   {
     if (!$this->timerActive || !$this->isValid()) return;
 
-    if (!empty($this->chunk) && (microtime(true) - $this->lastFlush) >= $this->timeout)
+    if (!empty($this->chunk) && (Loop::getTime() - $this->lastFlush) >= $this->timeout)
       $this->flush();
 
     $this->scheduleTimer(); // Планируем следующий тик

@@ -4,19 +4,29 @@ class Loop
   private static array $timers             = [];
   private static array $fibers             = [];
   private static array $readStreams        = [];
-  private static bool  $running            = true;
+  private static bool  $running            = false;
+  private static bool  $stopping           = false; //Soft stop
+  private static bool  $forceStop          = false; //Immideatly stop
   private static array $signalCallbacks    = [];
   private static bool  $signalsInitialized = false;
+  private static float $shiftTime          = 0;
   
-  static function init() { static::checkLostInit(); }
-  static function dispose() { static::checkLost(); }
+  static function init()
+  {
+    self::$shiftTime = hrtime(true);
+    self::checkLostInit();
+  }
+  static function dispose() { self::checkLost(); }
+  
+//static function getTime() { return microtime(true); }
+  static function getTime() { return (hrtime(true)-self::$shiftTime)*1e-9; }
   
   // Добавить отложенную задачу (таймер)
   static function delay(float $seconds, callable $callback): void
   {
     self::$timers[] = [
-      'execute_at' => microtime(true) + $seconds,
-      'callback' => $callback
+      'execute_at' => self::getTime() + $seconds,
+      'callback'   => $callback
     ];
   }
 
@@ -24,7 +34,7 @@ class Loop
   static function addReadStream($stream, callable $callback): void
   {
     self::$readStreams[get_resource_id($stream)] = [
-      'stream' => $stream,
+      'stream'   => $stream,
       'callback' => $callback
     ];
   }
@@ -32,7 +42,6 @@ class Loop
   // Отписаться от потока
   static function removeReadStream($stream): void
   {
-  //unset(self::$readStreams[(int)$stream]);
     unset(self::$readStreams[get_resource_id($stream)]);
   }
 
@@ -46,12 +55,25 @@ class Loop
   }
 
   /**
-   * Остановка цикла событий
+   * Мягная остановка цикла событий
    */
-  static function stop(): void
+  static function stop(?float $timeout=null): void
   {
-    self::$running = false;
+    self::$stopping = true;
+    self::setTimeLimit($timeout?? self::$$stoppingLimit);
+    
+    //TODO: notify tasks and remove true
+    if (true || ($timeout?? 1)<=0)
+    {
+      self::forceStop();
+      return;
+    }
   }
+
+  /**
+   * Немедленная остановка цикла событий
+   */
+  static function forceStop(): void { self::$forceStop = true; }
 
   /**
    * Инициализация обработчиков под текущую ОС
@@ -99,18 +121,55 @@ class Loop
    * Выполняет ровно одну итерацию цикла событий.
    * Возвращает true, если в цикле ещё остались живые задачи (таймеры или сокеты).
    */
-  static function tick()
+  static function tick():bool
+  {
+    if (self::$running)
+    {
+      Logger::error('Recursive runing')->backtrace();
+      return true; //TODO: throw \LogicException?
+    }
+    
+    self::$running = true;
+
+    $result = self::internalTick();
+        
+    self::$running = false;
+    
+    return $result;
+  }
+  
+  /**
+   * Главный запуск цикла
+   */
+  static function run(): void
+  {
+    if (self::$running)
+    {
+      Logger::error('Recursive runing')->backtrace();
+      return;
+    }
+    
+    self::$running = true;
+    
+    while (!self::$forceStop)
+      if (!self::internalTick())
+        break;
+    
+    self::$running = false;
+  }
+
+  protected static function internalTick():bool
   {
     // КРИТИЧНО ДЛЯ UNIX: Проверяем, не пришли ли сигналы PCNTL
     if(!str_starts_with(PHP_OS, 'WIN') && function_exists('pcntl_signal_dispatch'))
       pcntl_signal_dispatch();
 
     // Если во время обработки сигнала вызвали Loop::stop(), выходим
-  //if (!self::$running) return false;
+    if (self::$forceStop) return false;
 
-    $now = microtime(true);
+    $now = self::getTime();
     
-    static::watchingTick($now);
+    self::watchingTick($now);
 
     // 1. Обрабатываем таймеры, у которых подошло время
     foreach (self::$timers as $key => $timer)
@@ -135,7 +194,7 @@ class Loop
       if (!empty(self::$timers))
       {
         $nextTimer = min(array_column(self::$timers, 'execute_at'));
-        $timeout = max(0, $nextTimer - microtime(true));
+        $timeout = max(0, $nextTimer - self::getTime());
       }
 
       $tv_sec = (int)$timeout;
@@ -144,10 +203,9 @@ class Loop
       // Ждем системного уведомления о готовности потоков
       // Ошибка stream_select прерывает функцию при получении системного сигнала на Linux,
       // поэтому глушим ее через @ и проверяем статус
-      if(@stream_select($read, $write, $except, $tv_sec, $tv_usec) > 0)
+      if (@stream_select($read, $write, $except, $tv_sec, $tv_usec) > 0)
         foreach ($read as $stream)
         {
-        //$key = (int)$stream;
           $key = get_resource_id($stream);
           if (isset(self::$readStreams[$key]))
             (self::$readStreams[$key]['callback'])($stream);
@@ -160,25 +218,15 @@ class Loop
     return !empty(self::$timers) || !empty(self::$readStreams);
   }
   
-  /**
-   * Главный запуск цикла
-   */
-  static function run(): void
-  {
-  //self::$running = true;
-    while (self::$running)
-      if (!static::tick())
-        break;
-  }
-
   // Удобный хелпер для запуска кода в изолированном файбере
   static function async(callable $callback, ...$args): void
   {
     $callback = function() use($callback, $args)
     {
-      $fiber=Fiber::getCurrent();
-      $id=spl_object_id($fiber);
-      self::$fibers[$id]=$fiber;
+      $fiber = Fiber::getCurrent();
+      $id    = spl_object_id($fiber);
+      self::$fibers[$id] = $fiber;
+      Stat::$promise->add();
       try
       {
         $callback(...$args);
@@ -190,6 +238,7 @@ class Loop
       finally
       {
         UnSet(self::$fibers[$id]);
+        Stat::$promise->remove();
       }
     };
     $fiber = new Fiber($callback);
@@ -203,10 +252,11 @@ class Loop
   private static float $timeLimit          =  0;
   private static float $hardTimeLimit      =  0;
   private static float $watchingTimer      = 10;
+  private static float $stoppingLimit      = 10;
   
   static function setTimeLimit(float $seconds, float $hard=10)
   {
-    self::$timeLimit = microtime(true) + $seconds;
+    self::$timeLimit = self::getTime() + $seconds;
     self::$hardTimeLimit = $hard > 0? self::$timeLimit+$hard:0;
     set_time_limit(ceil(self::$hardTimeLimit));
   }
@@ -215,20 +265,21 @@ class Loop
   {
     if(($until=self::$timeLimit) && $until<=$now)
     {
-      Logger::error('Loop: TimeLimit exhausted: ', self::$running)
-        ->Dump(new ReflectionClass(self::class)->getStaticProperties());
-      return false;
+      Logger::error('Loop: TimeLimit exhausted');
+      //->Dump(new ReflectionClass(self::class)->getStaticProperties());
+      self::forceStop();
+      return;
     }
     
     if ($limit = self::$watchingTimer)
     { //TODO: period 1 second
-      $until=self::$hardTimeLimit;
-      if ($until)
+      if ($until = self::$hardTimeLimit)
       {
-        $until-=$now;
-        if($limit>$until)
-          $limit=$until;
+        $until -= $now;
+        if ($limit > $until)
+          $limit = $until;
       }
+      
       if ($limit > 0)
         set_time_limit(ceil($limit));
     }
@@ -242,42 +293,42 @@ class Loop
   
   static function checkLostInit()
   {
-    static::$lostObjects=new WeakMap();
+    self::$lostObjects=new WeakMap();
   }
   
   static function checkLost()
   {
-    static::checkLostFibers();
-    static::checkLostTimers();
-    static::checkLostObjects();
+    self::checkLostFibers();
+    self::checkLostTimers();
+    self::checkLostObjects();
   }
   
   static function checkLostFibers()
   {
-    if (!static::$timers) return;
+    if (!self::$timers) return;
     Logger::error('Lost fibers:');
-    foreach (static::$fibers as $fiber)
+    foreach (self::$fibers as $fiber)
       Logger::log('  ', $fiber);
     Logger::log();
-    static::$timers=[];
+    self::$timers=[];
   }
   
   static function checkLostTimers()
   {
-    if (!static::$timers) return;
+    if (!self::$timers) return;
     Logger::error('Lost timers:');
-    foreach (static::$timers as $timer)
+    foreach (self::$timers as $timer)
       Logger::log('  ', $timer);
     Logger::log();
-    static::$timers=[];
+    self::$timers=[];
   }
   
   static function checkLostObjects()
   {
-    if (!count(static::$lostObjects)) return;
+    if (!count(self::$lostObjects)) return;
     Logger::error('Lost objects:');
     $Idx=0;
-    foreach (static::$lostObjects as $object=>$backtrace)
+    foreach (self::$lostObjects as $object=>$backtrace)
       Logger::log('  ', $Idx++, '=>')->dump($object)->setstack($backtrace);
     Logger::log();
   }
@@ -285,16 +336,26 @@ class Loop
   
   static function register($object)
   {
-    if (!static::$catchLostObjects) return;
+    if (!self::$catchLostObjects) return;
     
-    static::$lostObjects[$object]=debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+    self::$lostObjects[$object] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
   }
   
   static function unregister($object)
   {
-    unset(static::$lostObjects[$object]);
+    unset(self::$lostObjects[$object]);
   }
 
+//****************************************************************
+// Statistics
+
+  private static $stat_fiber_count    =0;
+  private static $stat_fiber_max      =0;
+  private static $stat_promise_count  =0;
+  private static $stat_promise_max    =0;
+  private static $stat_pipeline_count =0;
+  private static $stat_pipeline_max   =0;
+  
 //****************************************************************
 }
 

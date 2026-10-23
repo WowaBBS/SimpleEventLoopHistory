@@ -1,15 +1,15 @@
 <?
 include '_All.Cli.php';
 
-$TickEvents=[];
+$tickEvents = [];
 
 function do_ticks()
 {
-  global $TickEvents;
-  $List=$TickEvents;
-  $TickEvents=[];
-  foreach($List as $Event)
-    $Event();
+  global $tickEvents;
+  $list = $tickEvents;
+  $tickEvents = [];
+  foreach ($list as $event)
+    $event();
 }
 
 // Функция, имитирующая асинхронный запрос (например, к API)
@@ -17,21 +17,22 @@ function fetchUserData(int $userId): Promise
 {
   $deferred = new Deferred();
   
-  $Func=function() use ($deferred, $userId) {
+  $func = function() use ($deferred, $userId) {
     $deferred->resolve(["id" => $userId, "name" => "The User", "role" => "admin"]);
   };
 
   // Имитируем некую асинхронную операцию (в реальности тут будет ваш Event Loop)
   // Для примера просто резолвим через секунду
-  global $TickEvents;
-  $TickEvents[]=$Func;
+  global $tickEvents;
+  $tickEvents[] = $func;
 
   return $deferred->promise();
 }
 
 // Запускаем асинхронный контекст через Fiber
 $fiber = new Fiber(function() {
-  try {
+  try
+  {
     Logger::log('Require user...');
 
     // Магия: код замирает здесь, пока промис не выполнится
@@ -57,3 +58,7 @@ for ($i = 0; $i < 5; $i++) {
   // Вызываем тики, чтобы сработал наш асинхронный код
   do_ticks();
 }
+
+unset($i);
+if(!$tickEvents) unset($tickEvents);
+if(!$fiber || $fiber->isTerminated()) unset($fiber);
