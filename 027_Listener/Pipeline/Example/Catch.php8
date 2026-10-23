@@ -1,5 +1,5 @@
 <?
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 include 'Data.php';
 
 Loop::setTimeLimit(15, 5);
@@ -36,8 +36,8 @@ function readInt(int &$stream, int $count)
   return $result;
 }
 
-//Loop::async(function() use ($db) {
-(function() use ($db) {
+//Loop::async(function(){
+//(function(){
   Logger::log('--- START TEST ---');
   
   $generator=function() { for($i=0; $i<100; $i++) yield $i; };
@@ -70,5 +70,5 @@ function readInt(int &$stream, int $count)
 
   Logger::log('TotalAmount: ', $totalAmount);
   Logger::log('--- END OF TEST ---');
-})();
+//})();
 //});

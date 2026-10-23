@@ -1,7 +1,7 @@
 <?
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 
-Loop::async(function() {
+//Loop::async(function() {
   Logger::log('[Case 1] Do long reqest with timeout 1.5 sec...');
 
   // Имитируем запрос, который длится 3 секунды
@@ -21,6 +21,6 @@ Loop::async(function() {
     // Сработает таймаут, так как 1.5с < 3.0с
     Logger::error('Error race: ', $e->getMessage()); 
   }
-});
+//});
 
 Loop::run();

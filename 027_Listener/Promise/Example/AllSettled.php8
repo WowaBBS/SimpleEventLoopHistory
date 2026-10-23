@@ -1,7 +1,7 @@
 <?
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 
-Loop::async(function() {
+//Loop::async(function() {
   Logger::log('[Process] We are launching a survey of independent services....');
 
   $promises = [
@@ -22,4 +22,4 @@ Loop::async(function() {
     else
       $log("  Error in {$serviceName}: " , $promise->getReason()->getMessage());
   }
-});
+//});

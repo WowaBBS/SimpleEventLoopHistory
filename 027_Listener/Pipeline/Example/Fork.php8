@@ -1,13 +1,13 @@
 <?
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 include 'Data.php';
 
 Loop::setTimeLimit(9, 1); //Added 5+4 seconds!!!
 
-//Loop::async(function() use ($db) {
-(function() use ($db) {
+//Loop::async(function(){
+(function(){
   // 1. Создаем корневой пайплайн
-  [$p1, $p2]=Pipeline::from($db->queryAsyncStream('SELECT * FROM TableA'))
+  [$p1, $p2]=Pipeline::from(MockDB::get()->queryAsyncStream('SELECT * FROM TableA'))
     ->fork(function($Pipeline){
       return [
         // 2. Делаем первого потребителя (Потоковое логирование)

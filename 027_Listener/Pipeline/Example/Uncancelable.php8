@@ -1,13 +1,13 @@
 <?
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 include 'Data.php';
 
-Loop::async(function() use ($db) {
+//Loop::async(function(){
   try
   {
     Logger::log('[Pipeline] Launching heavy data pipeline...');
 
-    $promise = Pipeline::from($db->queryAsyncStream('SELECT * FROM TableA'))
+    $promise = Pipeline::from(MockDB::get()->queryAsyncStream('SELECT * FROM TableA'))
       ->map(function($row) {
         // Этот лог перестанет выполняться СРАЗУ ЖЕ в момент отмены,
         // так как map() проверяет сигнал на каждой строке
@@ -34,4 +34,5 @@ Loop::async(function() use ($db) {
   {
     Logger::log('[Result] The final promise was interrupted.');
   }
-});
+//});
+Logger::log('-- End and contune uncancelable --');

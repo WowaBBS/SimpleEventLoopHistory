@@ -1,7 +1,7 @@
 <?
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 
-Loop::async(function() {
+Loop::async(function() { // TODO: Bug
   Logger::log('--- Initialization of lazy promises ---');
   
   // Создаем промисы. Обратите внимание: логов отправки в сеть или запуск таймеров НЕТ!

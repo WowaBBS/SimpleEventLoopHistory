@@ -1,5 +1,5 @@
 <?
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 
 //Чейнинг (Цепочки вызовов)
 $deferred = new Deferred();

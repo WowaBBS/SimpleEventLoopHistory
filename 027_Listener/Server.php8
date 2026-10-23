@@ -1,5 +1,5 @@
 <?
-include '_All.Test.php';
+include '_All.Cli.php';
 
 // Бизнес-логика обработки HTTP-запроса
 $httpHandler = function(string $rawRequest, int $clientId): string {

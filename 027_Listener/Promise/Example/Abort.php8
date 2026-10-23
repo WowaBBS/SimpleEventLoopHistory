@@ -1,12 +1,12 @@
 <?
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 
 // Ïמהדמעמגטל עוסעמגûו פאיכû
 $f1=LargeFile('file1.txt', 'Data 1 ', 100_000);
 $f2=LargeFile('file2.txt', 'Data 2 ', 100_000);
 $f3=LargeFile('file3.txt', 'Data 3 ', 100_000);
 
-Loop::async(function() {
+//Loop::async(function() {
   $controller = new AbortController();
   $signal = $controller->getSignal();
 
@@ -39,6 +39,6 @@ Loop::async(function() {
   $safeAwait($p1, 'File 1');
   $safeAwait($p2, 'File 2');
   $safeAwait($p3, 'File 3');
-});
+//});
 
 Loop::run();

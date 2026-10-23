@@ -1,13 +1,13 @@
 <?
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 include 'Data.php';
 
 Loop::setTimeLimit(9, 1); //Added 5+4 seconds!!!
 
 Promise::$delayedEvents = !true;
 
-//Loop::async(function() use ($db) {
-(function() use ($db) {
+//Loop::async(function(){
+//(function(){
   $task = 'MyTask';
 
   Logger::log('--- START TEST ---');
@@ -15,7 +15,7 @@ Promise::$delayedEvents = !true;
   try
   {
     // Создаем стартовый пайплайн
-    $totalAmount = Pipeline::from($db->queryAsyncStream('SELECT * FROM TableA WHERE task = ?', [$task]))
+    $totalAmount = Pipeline::from(MockDB::get()->queryAsyncStream('SELECT * FROM TableA WHERE task = ?', [$task]))
       ->skip(1)->limit(110)->skip(1)
       // Разветвление потока на несколько независимых детей
       ->fork(function(Pipeline $pipeline) {
@@ -38,7 +38,7 @@ Promise::$delayedEvents = !true;
       // Группировка
       ->group(count: 100, timeout: 1)
   
-      ->map(function($list) use ($db) {
+      ->map(function($list){
         Logger::log('>>> The group has been formed! Responses received: ', count($list));
         $ids = [];
         foreach ($list as $item)
@@ -48,7 +48,7 @@ Promise::$delayedEvents = !true;
           $ids[] = $data->id;
         }
         // Возвращаем промис запроса к БД
-        return $db->queryAsyncStream('SELECT * FROM TableB WHERE id in (?)', [$ids]);
+        return MockDB::get()->queryAsyncStream('SELECT * FROM TableB WHERE id in (?)', [$ids]);
       })
       // Разворачиваем полученный из БД массив строк TableB, чтобы sum() считал их поштучно
       ->unpack(5)
@@ -70,13 +70,13 @@ Promise::$delayedEvents = !true;
       ->await();
   
     // Запись финала
-    $db->queryAsync('INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())', [$task, $totalAmount['sum']])->await();
+    MockDB::get()->queryAsync('INSERT INTO TableC (task, totalAmount, time) VALUES(?, ?, NOW())', [$task, $totalAmount['sum']])->await();
     Logger::log('Recording the final result in TableC. Final total: ', $totalAmount);
   }
   finally
   {
     Logger::log('--- END OF TEST ---');
   }
-})();
+//})();
 //});
 Logger::log('-- End --');

@@ -1,18 +1,18 @@
 <?php
-include '../../_All.Test.php';
+include '../../_All.Cli.php';
 include 'Data.php';
 
 $task = 'MyTask';
 
 Loop::setTimeLimit(2, 1);
 
-//Loop::async(function() use ($db, $task) {
-(function() use ($db, $task) {
+//Loop::async(function() use ($task) {
+//(function() use ($task) {
   try
   {
     Logger::log('[Pipeline] Launching heavy data pipeline...');
 
-    $promise = Pipeline::from($db->queryAsyncStream('SELECT * FROM TableA'))
+    $promise = Pipeline::from(MockDB::get()->queryAsyncStream('SELECT * FROM TableA'))
       ->map(function($row) {
         // Этот лог перестанет выполняться СРАЗУ ЖЕ в момент отмены,
         // так как map() проверяет сигнал на каждой строке
@@ -21,10 +21,10 @@ Loop::setTimeLimit(2, 1);
       })
       ->concurrent()
       ->group(count: 100, timeout: 1.0)
-      ->map(function($list) use ($db) {
+      ->map(function($list){
         Logger::log('>>> The group has been formed! Responses received: ', count($list));
         // (здесь логика сборки ID и запроса к TableB)
-        return $db->queryAsync('SELECT * FROM TableB WHERE id IN (?)', [[1001,1002]])->await();
+        return MockDB::get()->queryAsync('SELECT * FROM TableB WHERE id IN (?)', [[1001,1002]])->await();
       })
       ->map(fn($rowB) => $rowB['amount'] ?? 0)->sum()
       ;
@@ -49,5 +49,5 @@ Loop::setTimeLimit(2, 1);
   {
     Logger::error('A failure occurred: ', $e->getMessage());
   }
-})();
+//})();
 //});

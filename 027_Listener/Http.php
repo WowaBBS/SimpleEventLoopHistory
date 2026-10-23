@@ -1,12 +1,16 @@
 <?
-$httpGetAsync_Provider=socket_httpGetAsync(...);
+class Http
+{
+  static $provider=null;
+}
+
+Http::$provider=socket_httpGetAsync(...);
 
 function lazyHttpGet(string $url): Promise { return Promise::lazy(httpGetAsync(...), $url); }
 
 function httpGetAsync(string $url): Promise
 {
-  global $httpGetAsync_Provider;
-  return $httpGetAsync_Provider($url);
+  return (Http::$provider)($url);
 }
 
 function socket_httpGetAsync(string $url): Promise

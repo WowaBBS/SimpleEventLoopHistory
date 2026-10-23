@@ -4,6 +4,10 @@
  */
 class MockDB
 {
+  static self $instance;
+  
+  static function get() { return self::$instance??=new MockDB(); }
+
   private array $delayedResponses =[];
 
   /**
