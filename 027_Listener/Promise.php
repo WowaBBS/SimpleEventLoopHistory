@@ -21,7 +21,7 @@ class Promise extends Promise_Handlers
   
   function __construct(mixed $arg = null)
   {
-    Loop::register($this);
+    Loop_LeakTracker::register($this);
     Stat::$promise->add();
     if ($arg === null) return;
     

@@ -14,9 +14,10 @@ class Loop
   static function init()
   {
     self::$shiftTime = hrtime(true);
-    self::checkLostInit();
+    Loop_LeakTracker::init();
   }
-  static function dispose() { self::checkLost(); }
+  
+  static function dispose() { Loop_LeakTracker::checkLost(); }
   
 //static function getTime() { return microtime(true); }
   static function getTime() { return (hrtime(true)-self::$shiftTime)*1e-9; }
@@ -300,66 +301,8 @@ class Loop
   }
 
 //****************************************************************
-// Memory leak detector
-
-  private static bool    $catchLostObjects =true;
-  private static WeakMap $lostObjects      ;
-  
-  static function checkLostInit()
-  {
-    self::$lostObjects=new WeakMap();
-  }
-  
-  static function checkLost()
-  {
-    self::checkLostFibers();
-    self::checkLostTimers();
-    self::checkLostObjects();
-  }
-  
-  static function checkLostFibers()
-  {
-    if (!self::$timers) return;
-    Logger::error('Lost fibers:');
-    foreach (self::$fibers as $fiber)
-      Logger::log('  ', $fiber);
-    Logger::log();
-    self::$timers=[];
-  }
-  
-  static function checkLostTimers()
-  {
-    if (!self::$timers) return;
-    Logger::error('Lost timers:');
-    foreach (self::$timers as $timer)
-      Logger::log('  ', $timer);
-    Logger::log();
-    self::$timers=[];
-  }
-  
-  static function checkLostObjects()
-  {
-    if (!count(self::$lostObjects)) return;
-    Logger::error('Lost objects:');
-    $Idx=0;
-    foreach (self::$lostObjects as $object=>$backtrace)
-      Logger::log('  ', $Idx++, '=>')->dump($object)->setstack($backtrace);
-    Logger::log();
-  }
-  
-  
-  static function register($object)
-  {
-    if (!self::$catchLostObjects) return;
-    
-    self::$lostObjects[$object] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
-  }
-  
-  static function unregister($object)
-  {
-    unset(self::$lostObjects[$object]);
-  }
-
+  static function LeakTracker_fetchFibers() { $result = self::$fibers; self::$fibers = []; return $result; }
+  static function LeakTracker_fetchTimers() { $result = self::$timers; self::$timers = []; return $result; }
 //****************************************************************
 }
 
