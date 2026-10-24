@@ -6,7 +6,7 @@ class Stat_Sleep
   public int   $count     =0;
   public float $sleep     =0;
   public float $oversleep =0;
-  public float $insomia   =0;
+  public float $insomnia  =0;
   public float $start     =0;
 
   function toDebug()
@@ -17,7 +17,7 @@ class Stat_Sleep
     $result = [Debug::Log_Item('[', 'Op'), 'count',$colon,' ', $this->count];
     if($this->sleep     ) array_push($result, $comma,' sleep'     ,$colon,' ',Debug::Time($this->sleep     ));
     if($this->oversleep ) array_push($result, $comma,' oversleep' ,$colon,' ',Debug::Time($this->oversleep ));
-    if($this->insomia   ) array_push($result, $comma,' insomia'   ,$colon,' ',Debug::Time($this->insomia   ));
+    if($this->insomnia  ) array_push($result, $comma,' insomnia'  ,$colon,' ',Debug::Time($this->insomnia  ));
     $result[]=Debug::Log_Item(']', 'Op');
     return Debug::Log_List($result);
   }
@@ -32,6 +32,6 @@ class Stat_Sleep
     if($add > 0)
       $this->oversleep +=$add;
     else
-      $this->insomina  +=$add;
+      $this->insomnia  -=$add;
   }
 }

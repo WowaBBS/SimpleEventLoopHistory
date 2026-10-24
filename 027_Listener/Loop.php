@@ -223,7 +223,6 @@ class Loop
     }
     else //$sleep
     {
-      $timeout = 0.001; //TODO: Remove
       Stat::$sleep->begin();
       usleep((int)($timeout*1000000)); // ћаленький сон, если задач нет, чтобы не перегружать CPU
       Stat::$sleep->end($timeout);
@@ -361,16 +360,6 @@ class Loop
     unset(self::$lostObjects[$object]);
   }
 
-//****************************************************************
-// Statistics
-
-  private static $stat_fiber_count    =0;
-  private static $stat_fiber_max      =0;
-  private static $stat_promise_count  =0;
-  private static $stat_promise_max    =0;
-  private static $stat_pipeline_count =0;
-  private static $stat_pipeline_max   =0;
-  
 //****************************************************************
 }
 

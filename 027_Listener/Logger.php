@@ -17,7 +17,7 @@ class Logger
     return $deferred->promise();
   }
   
-  static function get() { return \WLib\Object\C_Loader::Get(); }
+  static function get() { return \WLib\Log\Logger::Get(); }
   static protected function push($level, ...$args) { return self::get()->Log($level, ...$args); }
   
   static function exception(\Throwable $e, ...$args) { return self::error(...$args)->Exception($e); }
