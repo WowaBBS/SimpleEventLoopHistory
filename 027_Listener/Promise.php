@@ -24,12 +24,28 @@ class Promise extends Promise_Handlers
     Loop::register($this);
     Stat::$promise->add();
     if ($arg === null) return;
-  //if (!is_callable($arg))
+    
+    if (is_callable($arg))
+    {
+      Loop::async(function() {
+        try
+        {
+          $arg(new Deferred($this));
+        }
+        catch(\Throwable $e)
+        {
+          $this->reject($e);
+        }
+      });
+      return;
+    } 
+    
     if (!is_object($arg))
     {
       $this->resolve($arg);
       return;
     }
+    
     if ($arg instanceof Self)
     {
       $arg->then( // TODO: handler
@@ -37,11 +53,13 @@ class Promise extends Promise_Handlers
         $this->reject  (...),
       );
     }
+    
     if ($arg instanceof \Throwable)
     {
       $this->reject($arg);
       return;
     }
+    
     $this->resolve($arg);
   }
   

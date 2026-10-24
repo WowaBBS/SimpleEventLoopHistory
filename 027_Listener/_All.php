@@ -1,4 +1,6 @@
 <?
+include 'Stat/_All.php';
+include 'Stat.php';
 include 'Promise/_All.php';
 include 'Promise.php';
 include 'Loop.php';
@@ -10,4 +12,3 @@ include 'Logger.php';
 include 'PipeLine.php';
 include 'PipeLine/_All.php';
 include 'Server.php';
-include 'Stat.php';

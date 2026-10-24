@@ -23,8 +23,8 @@
     // Вычисляем общее время выполнения
     $executionTime = Loop::getTime();
   
-    Logger::log('It took ', round($executionTime, 2), ' seconds');
     Stat::debug();
+    Logger::log('It took ', round($executionTime, 2), ' seconds');
   
     \WLib\Object\C_Loader::Get()->Dispose();
   });
@@ -41,7 +41,10 @@
 for($F=__FILE__; $F;) if(@include($F=DirName($F)).'/Using.php') break; unset($F);
   
 unset($Loader);
+
 \WLib\Object\C_Loader::Get()->GetLogger()->ScriptLog();
+\WLib\Object\C_Loader::Get()->Load_Lib('/Debug/Format');
+\WLib\Object\C_Loader::Get()->Load_Lib('/Log/Logger');
 
 C_Debug_Template::$Closure_Use    =false;
 C_Debug_Template::$Closure_This   =false;

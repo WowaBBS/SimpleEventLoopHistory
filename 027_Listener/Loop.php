@@ -24,6 +24,7 @@ class Loop
   // Добавить отложенную задачу (таймер)
   static function delay(float $seconds, callable $callback): void
   {
+    Stat::$timers->add();
     self::$timers[] = [
       'execute_at' => self::getTime() + $seconds,
       'callback'   => $callback
@@ -160,6 +161,8 @@ class Loop
 
   protected static function internalTick():bool
   {
+    Stat::$ticks++;
+    
     // КРИТИЧНО ДЛЯ UNIX: Проверяем, не пришли ли сигналы PCNTL
     if(!str_starts_with(PHP_OS, 'WIN') && function_exists('pcntl_signal_dispatch'))
       pcntl_signal_dispatch();
@@ -175,12 +178,21 @@ class Loop
     foreach (self::$timers as $key => $timer)
       if ($now >= $timer['execute_at'])
       {
+        Stat::$timers->remove();
         unset(self::$timers[$key]);
         //TODO: workaround: need task manager
         Loop::async(function() use ($timer) {
           ($timer['callback'])();
         });
       }
+
+    $timeout = 1;
+    if (!empty(self::$timers))
+    {
+      $nextTimer = min(array_column(self::$timers, 'execute_at'));
+      $timeout = max(0, $nextTimer - self::getTime());
+    }
+
 
     // 2. Проверяем стримы через stream_select
     if (!empty(self::$readStreams))
@@ -190,20 +202,18 @@ class Loop
       $except = null;
       
       // Таймаут для select: берем время до ближайшего таймера или 1 секунду
-      $timeout = 1;
-      if (!empty(self::$timers))
-      {
-        $nextTimer = min(array_column(self::$timers, 'execute_at'));
-        $timeout = max(0, $nextTimer - self::getTime());
-      }
-
       $tv_sec = (int)$timeout;
       $tv_usec = (int)(($timeout - $tv_sec) * 1000000);
 
       // Ждем системного уведомления о готовности потоков
       // Ошибка stream_select прерывает функцию при получении системного сигнала на Linux,
       // поэтому глушим ее через @ и проверяем статус
-      if (@stream_select($read, $write, $except, $tv_sec, $tv_usec) > 0)
+      
+      Stat::$sleep->begin();
+      $count = @stream_select($read, $write, $except, $tv_sec, $tv_usec);
+      Stat::$sleep->end($timeout);
+
+      if ($count > 0)
         foreach ($read as $stream)
         {
           $key = get_resource_id($stream);
@@ -211,8 +221,13 @@ class Loop
             (self::$readStreams[$key]['callback'])($stream);
         }
     }
-    else
-      usleep(1000); // Маленький сон, если задач нет, чтобы не перегружать CPU
+    else //$sleep
+    {
+      $timeout = 0.001; //TODO: Remove
+      Stat::$sleep->begin();
+      usleep((int)($timeout*1000000)); // Маленький сон, если задач нет, чтобы не перегружать CPU
+      Stat::$sleep->end($timeout);
+    }
     
     // Возвращаем флаг: есть ли ради чего крутить цикл дальше
     return !empty(self::$timers) || !empty(self::$readStreams);
@@ -226,7 +241,7 @@ class Loop
       $fiber = Fiber::getCurrent();
       $id    = spl_object_id($fiber);
       self::$fibers[$id] = $fiber;
-      Stat::$promise->add();
+      Stat::$fiber->add();
       try
       {
         $callback(...$args);
@@ -238,7 +253,7 @@ class Loop
       finally
       {
         UnSet(self::$fibers[$id]);
-        Stat::$promise->remove();
+        Stat::$fiber->remove();
       }
     };
     $fiber = new Fiber($callback);
