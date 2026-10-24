@@ -23,8 +23,10 @@
     // Вычисляем общее время выполнения
     $executionTime = Loop::getTime();
   
-    Stat::debug();
-    Logger::log('It took ', round($executionTime, 2), ' seconds');
+    if (true)
+      Stat::debug();
+    else
+      Logger::log('It tooks ', round($executionTime, 2), ' seconds');
   
     \WLib\Object\C_Loader::Get()->Dispose();
   });

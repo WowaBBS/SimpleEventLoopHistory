@@ -22,14 +22,14 @@ class Stat_Usage
   
   function toDebug()
   {
-    $comma  = Debug::Log_Item(',', 'Op');
-    $colon  = Debug::Log_Item(':', 'Op');
-    $result = [Debug::Log_Item('[', 'Op'), 
-      'total' ,$colon,' ', $this->total,$comma,' ',
-      'max'   ,$colon,' ', $this->max  ,
+    $res = ['[',
+      'total' ,': ', $this->total,', ',
+      'max'   ,': ', $this->max  ,
     ];
-    if($this->count) array_push($result, ' ', $comma,' count' ,$colon,' ',$this->count);
-    $result[]=Debug::Log_Item(']', 'Op');
-    return Debug::Log_List($result);
+    
+    if ($this->count) array_push($res, ' , count: ' ,$this->count);
+    
+    $res[]=']';
+    return Debug::Log_List($res);
   }
 }

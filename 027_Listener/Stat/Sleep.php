@@ -12,14 +12,12 @@ class Stat_Sleep
   function toDebug()
   {
     if(!$this->count) return [];
-    $comma  = Debug::Log_Item(',', 'Op');
-    $colon  = Debug::Log_Item(':', 'Op');
-    $result = [Debug::Log_Item('[', 'Op'), 'count',$colon,' ', $this->count];
-    if($this->sleep     ) array_push($result, $comma,' sleep'     ,$colon,' ',Debug::Time($this->sleep     ));
-    if($this->oversleep ) array_push($result, $comma,' oversleep' ,$colon,' ',Debug::Time($this->oversleep ));
-    if($this->insomnia  ) array_push($result, $comma,' insomnia'  ,$colon,' ',Debug::Time($this->insomnia  ));
-    $result[]=Debug::Log_Item(']', 'Op');
-    return Debug::Log_List($result);
+    $res = ['[count: ', $this->count];
+    if ($this->sleep     ) array_push($res, ', sleep'     ,': ',Debug::Time($this->sleep     ));
+    if ($this->oversleep ) array_push($res, ', oversleep' ,': ',Debug::Time($this->oversleep ));
+    if ($this->insomnia  ) array_push($res, ', insomnia'  ,': ',Debug::Time($this->insomnia  ));
+    $res[]=']';
+    return Debug::Log_List($res);
   }
   
   function begin() { $this->start=Loop::getTime(); }
