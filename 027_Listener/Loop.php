@@ -11,9 +11,13 @@ class Loop
   private static bool  $signalsInitialized = false;
   private static float $shiftTime          = 0;
   
+  private static Loop_WatchingTimer $watchingTimer;
+  
   static function init()
   {
     self::$shiftTime = hrtime(true);
+    
+    self::$watchingTimer = new Loop_WatchingTimer();
     Loop_LeakTracker::init();
   }
   
@@ -173,7 +177,7 @@ class Loop
 
     $now = self::getTime();
     
-    self::watchingTick($now);
+    self::$watchingTimer->tick($now);
 
     // 1. Обрабатываем таймеры, у которых подошло время
     foreach (self::$timers as $key => $timer)
@@ -264,41 +268,7 @@ class Loop
 //****************************************************************
 // Watching timer
 
-  private static float $timeLimit          =  0;
-  private static float $hardTimeLimit      =  0;
-  private static float $watchingTimer      = 10;
-  private static float $stoppingLimit      = 10;
-  
-  static function setTimeLimit(float $seconds, float $hard=10)
-  {
-    self::$timeLimit = self::getTime() + $seconds;
-    self::$hardTimeLimit = $hard > 0? self::$timeLimit+$hard:0;
-    set_time_limit(ceil(self::$hardTimeLimit));
-  }
-
-  static function watchingTick($now)
-  {
-    if(($until=self::$timeLimit) && $until<=$now)
-    {
-      Logger::error('Loop: TimeLimit exhausted');
-      //->Dump(new ReflectionClass(self::class)->getStaticProperties());
-      self::forceStop();
-      return;
-    }
-    
-    if ($limit = self::$watchingTimer)
-    { //TODO: period 1 second
-      if ($until = self::$hardTimeLimit)
-      {
-        $until -= $now;
-        if ($limit > $until)
-          $limit = $until;
-      }
-      
-      if ($limit > 0)
-        set_time_limit(ceil($limit));
-    }
-  }
+  static function setTimeLimit(float $seconds, float $hard=10) { self::$watchingTimer->setTimeLimit($seconds, $hard); }
 
 //****************************************************************
   static function LeakTracker_fetchFibers() { $result = self::$fibers; self::$fibers = []; return $result; }
