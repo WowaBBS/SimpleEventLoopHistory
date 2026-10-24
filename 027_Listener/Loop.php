@@ -3,7 +3,6 @@ class Loop
 {
   private static array $timers             = [];
   private static array $fibers             = [];
-  private static array $readStreams        = [];
   private static bool  $running            = false;
   private static bool  $stopping           = false; //Soft stop
   private static bool  $forceStop          = false; //Immideatly stop
@@ -11,13 +10,15 @@ class Loop
   private static bool  $signalsInitialized = false;
   private static float $shiftTime          = 0;
   
-  private static Loop_WatchingTimer $watchingTimer;
+  private static Loop_IoWatcher     $ioWatcher     ;
+  private static Loop_WatchingTimer $watchingTimer ;
   
   static function init()
   {
     self::$shiftTime = hrtime(true);
     
-    self::$watchingTimer = new Loop_WatchingTimer();
+    self::$ioWatcher     = new Loop_IoWatcher     ();
+    self::$watchingTimer = new Loop_WatchingTimer ();
     Loop_LeakTracker::init();
   }
   
@@ -34,21 +35,6 @@ class Loop
       'execute_at' => self::getTime() + $seconds,
       'callback'   => $callback
     ];
-  }
-
-  // Подписаться на появление данных в сокете/потоке
-  static function addReadStream($stream, callable $callback): void
-  {
-    self::$readStreams[get_resource_id($stream)] = [
-      'stream'   => $stream,
-      'callback' => $callback
-    ];
-  }
-
-  // Отписаться от потока
-  static function removeReadStream($stream): void
-  {
-    unset(self::$readStreams[get_resource_id($stream)]);
   }
 
   /**
@@ -198,43 +184,11 @@ class Loop
       $timeout = max(0, $nextTimer - self::getTime());
     }
 
-
     // 2. Проверяем стримы через stream_select
-    if (!empty(self::$readStreams))
-    {
-      $read = array_column(self::$readStreams, 'stream');
-      $write = null;
-      $except = null;
-      
-      // Таймаут для select: берем время до ближайшего таймера или 1 секунду
-      $tv_sec = (int)$timeout;
-      $tv_usec = (int)(($timeout - $tv_sec) * 1000000);
-
-      // Ждем системного уведомления о готовности потоков
-      // Ошибка stream_select прерывает функцию при получении системного сигнала на Linux,
-      // поэтому глушим ее через @ и проверяем статус
-      
-      Stat::$sleep->begin();
-      $count = @stream_select($read, $write, $except, $tv_sec, $tv_usec);
-      Stat::$sleep->end($timeout);
-
-      if ($count > 0)
-        foreach ($read as $stream)
-        {
-          $key = get_resource_id($stream);
-          if (isset(self::$readStreams[$key]))
-            (self::$readStreams[$key]['callback'])($stream);
-        }
-    }
-    else //$sleep
-    {
-      Stat::$sleep->begin();
-      usleep((int)($timeout*1000000)); // Маленький сон, если задач нет, чтобы не перегружать CPU
-      Stat::$sleep->end($timeout);
-    }
+    self::$ioWatcher->tick($timeout);
     
     // Возвращаем флаг: есть ли ради чего крутить цикл дальше
-    return !empty(self::$timers) || !empty(self::$readStreams);
+    return !empty(self::$timers) || self::$ioWatcher->has();
   }
   
   // Удобный хелпер для запуска кода в изолированном файбере
@@ -264,6 +218,15 @@ class Loop
     // Запуск файбера. Если внутри будет Fiber::suspend(), управление вернется сюда
     $fiber->start(); 
   }
+
+//****************************************************************
+// IO Watcher
+
+  // Подписаться на появление данных в сокете/потоке
+  static function addReadStream($stream, callable $callback): void { self::$ioWatcher->addReadStream($stream, $callback); }
+
+  // Отписаться от потока
+  static function removeReadStream($stream): void { self::$ioWatcher->removeReadStream($stream); }
 
 //****************************************************************
 // Watching timer
