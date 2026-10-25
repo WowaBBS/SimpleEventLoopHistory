@@ -13,3 +13,4 @@ include 'Logger.php';
 include 'PipeLine.php';
 include 'PipeLine/_All.php';
 include 'Server.php';
+include 'WriteAsync.php';

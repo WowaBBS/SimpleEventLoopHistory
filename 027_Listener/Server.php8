@@ -2,13 +2,55 @@
 include '_All.Cli.php';
 
 // Бизнес-логика обработки HTTP-запроса
-$httpHandler = function(string $rawRequest, int $clientId): string {
+$httpHandler = function(string $rawRequest, $clientSocket, int $clientId): true|string {
   // Парсим первую строчку HTTP запроса (например: GET /index.html HTTP/1.1)
   $lines = explode("\r\n", $rawRequest);
   preg_match('/GET\s+(\/[^\s]*)/', $lines[0], $matches);
   $path = $matches[1] ?? '/';
 
-  Logger::log("?? [Client #$clientId] Path requested: $path");
+  Logger::log("[Client #$clientId] Path requested: $path");
+
+  // --- РОУТ: ОСТАНОВКА СЕРВЕРА ---
+  if ($path === '/exit')
+  {
+    Logger::log("[Client #$clientId] Command received for web-based exits...");
+
+    // Останавливаем цикл событий приложения
+    Loop::stop();
+    
+    return '<h1>The server is stopping...</h1><p>The Event Loop has completed successfully.</p>';
+  }
+  
+  // --- РОУТ: СТРИМИНГ БОЛЬШОГО ФАЙЛА С ЧЕСТНЫМ BACKPRESSURE ---
+  if ($path === '/bigfile')
+  {
+    $headers = "HTTP/1.1 200 OK\r\n" .
+           "Content-Type: application/octet-stream\r\n" .
+           "Content-Disposition: attachment; filename=\"huge_generated_file.bin\"\r\n" .
+           "Connection: close\r\n\r\n";
+
+    writeAsync($clientSocket, $headers, $clientId);
+
+    Logger::log("[Client #$clientId] Starting generation and streaming of a huge file...");
+
+    $chunkSize = 1024 * 1024; // 1 Мегабайт
+    $dummyData = str_repeat("B", $chunkSize);
+    $totalChunks = 1500; // Генерируем 1500 МБ на лету
+
+    for ($i = 1; $i <= $totalChunks; $i++)
+    {
+      // Метод writeAsync поставит файбер текущего клиента на паузу, если сеть не успевает
+      writeAsync($clientSocket, $dummyData, $clientId);
+
+      if ($i % 50 === 0)
+        Logger::log("[Client #$clientId] Sent ", $i, ' MB');
+
+      sleepAsync(0)->await();
+    }
+
+    Logger::logAsync("[Client #$clientId] File streaming completed successfully!");
+    return true;
+  }
 
   // Сценарий 1: Медленная страница (имитируем тяжелый SQL-запрос)
   if ($path === '/slow')
@@ -31,9 +73,17 @@ $httpHandler = function(string $rawRequest, int $clientId): string {
   }
 
   // Сценарий 3: Дефолтная быстрая страница
-  return "<h1>Greetings from a custom PHP server! ??</h1>" .
-         "<p>Your connection ID: <b>$clientId</b></p>" .
-         "<p>Try visiting <a href='/slow'>/slow</a> for testing multitasking.</p>";
+  return <<<HereDoc
+    <h1>Asynchronous PHP Framework.</h1>
+    <h2>Greetings from a custom PHP server! ??</h2>
+    <p>Your connection ID: <b>$clientId</b></p>
+    <p>The business logic is completely isolated within the handler!</p>
+    <ul>
+     <li>Try visiting <a href='/slow'>/slow</a> for testing multitasking.</li>
+     <li>Downloading a large file with backpressure: <a href='/bigfile'>/bigfile</a></li>
+     <li>Stop the server: <a href='/exit'>/exit</a></li>
+    </ul>
+  HereDoc;
 };
 
 // Запускаем сервер

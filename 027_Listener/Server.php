@@ -23,8 +23,7 @@ class AsyncServer
     // Открываем НЕБЛОКИРУЮЩИЙ серверный сокет
     $this->serverSocket = @stream_socket_server(
       $this->address,
-      $errno,
-      $errstr,
+      $errno, $errstr,
       STREAM_SERVER_BIND | STREAM_SERVER_LISTEN
     );
 
@@ -36,7 +35,7 @@ class AsyncServer
 
     stream_set_blocking($this->serverSocket, false);
 
-    // Регистрируем сокет в нашем Цикле Событий для ожидания новых подключений (событие READ)
+    // Листенер ждет новые соединения через IoWatcher (Read-событие на серверном сокете)
     Loop::addReadStream($this->serverSocket, $this->acceptConnection(...));
 
     Logger::log("Server successfully started and is listening: {$this->address}");
@@ -51,19 +50,17 @@ class AsyncServer
   private function acceptConnection($serverSocket): void
   {
     $clientSocket = @stream_socket_accept($serverSocket, 0); // 0 - таймаут мгновенно
-
     if (!$clientSocket) return;
-
+    
     stream_set_blocking($clientSocket, false);
 
     $clientId = (int)$clientSocket;
     Logger::log("[Client #$clientId] New connection");
 
     $buffer = '';
-
     // Регистрируем клиентский сокет на чтение данных
     Loop::addReadStream($clientSocket, function($stream) use ($clientSocket, $clientId, &$buffer) {
-      $chunk = fread($stream, 65535);
+      $chunk = fread($stream, 8192);
 
       if ($chunk === '' || $chunk === false)
       {
@@ -75,15 +72,14 @@ class AsyncServer
       $buffer .= $chunk;
 
       // Для простоты HTTP-сервера: проверяем, долетели ли заголовки полностью (разделитель \r\n\r\n)
-      if (str_contains($buffer, "\r\n\r\n"))
-      {
-        // Перестаем слушать чтение, пока обрабатываем этот запрос
-        Loop::removeReadStream($clientSocket);
+      if (!str_contains($buffer, "\r\n\r\n")) return;
+      
+      // Перестаем слушать чтение, пока обрабатываем этот запрос
+      Loop::removeReadStream($clientSocket);
 
-        // Запускаем обработку запроса в изолированном ФАЙБЕРЕ!
-        // Это позволит разработчику внутри обработчика делать await()!
-        Loop::async($this->handleClientRequest(...), $clientSocket, $clientId, $buffer);
-      }
+      // Запускаем обработку запроса в изолированном ФАЙБЕРЕ!
+      // Это позволит разработчику внутри обработчика делать await()!
+      Loop::async($this->handleClientRequest(...), $clientSocket, $clientId, $buffer);
     });
   }
 
@@ -97,8 +93,10 @@ class AsyncServer
       // Вызываем пользовательский обработчик, передавая туда сырой запрос.
       // Если внутри обработчика будет вызван await() (например, запрос к БД или файлу),
       // этот файбер замрет, но сервер продолжит принимать других клиентов!
-      $responseBody = ($this->handler)($requestData, $clientId);
-
+      $responseBody = ($this->handler)($requestData, $clientSocket, $clientId);
+      
+      if (!is_string($responseBody)) return;
+      
       // Формируем честный HTTP/1.1 ответ
       $httpResponse = "HTTP/1.1 200 OK\r\n" .
               "Content-Type: text/html; charset=utf-8\r\n" .
@@ -109,7 +107,6 @@ class AsyncServer
       // Записываем ответ клиенту.
       // В идеале запись тоже должна быть через write-стримы Loop, но для базы используем прямую отправку
       @fwrite($clientSocket, $httpResponse);
-
     }
     catch (\Throwable $e)
     {
@@ -126,6 +123,7 @@ class AsyncServer
   private function closeClient($clientSocket, int $clientId): void
   {
     Loop::removeReadStream($clientSocket);
+    Loop::removeWriteStream($clientSocket);
     if (is_resource($clientSocket))
       fclose($clientSocket);
     

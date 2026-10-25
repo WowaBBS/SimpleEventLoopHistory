@@ -22,6 +22,9 @@ class Stat_Usage
   
   function toDebug()
   {
+    if (!$this->total)
+      return [];
+    
     $res = ['[',
       'total' ,': ', $this->total,', ',
       'max'   ,': ', $this->max  ,

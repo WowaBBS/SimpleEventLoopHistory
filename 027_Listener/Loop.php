@@ -160,11 +160,13 @@ class Loop
 // IO Watcher
 
   // Подписаться на появление данных в сокете/потоке
-  static function addReadStream($stream, callable $callback): void { self::$io->addRead($stream, $callback); }
+  static function addReadStream  ($stream, callable $callback): void { self::$io->addRead  ($stream, $callback); }
+  static function addWriteStream ($stream, callable $callback): void { self::$io->addWrite ($stream, $callback); }
 
   // Отписаться от потока
-  static function removeReadStream($stream): void { self::$io->removeRead($stream); }
-
+  static function removeReadStream  ($stream): void { self::$io->removeRead  ($stream); }
+  static function removeWriteStream ($stream): void { self::$io->removeWrite ($stream); }
+  
 //****************************************************************
 // Signal Tracker
 
