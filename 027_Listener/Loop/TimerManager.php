@@ -1,12 +1,21 @@
 <?
 class Loop_TimerManager
 {
+  private Loop_TaskScheduler $scheduler;
   private array $timers = [];
   private float $nextTimeout = 0;
+
+  function __construct(Loop_TaskScheduler $scheduler) { $this->scheduler = $scheduler; }
 
   // Добавить отложенную задачу (таймер)
   function add(float $seconds, callable $callback): void
   {
+    // ОПТИМИЗАЦИЯ: Если время 0, пушим сразу в менеджер задач мимо таймеров!
+    if ($seconds <= 0)
+    {
+      $this->scheduler->enqueue($callback);
+      return;
+    }
     Stat::$timers->add();
     $this->timers[] = [
       'execute_at' => Loop::getTime() + $seconds,
@@ -22,10 +31,9 @@ class Loop_TimerManager
       {
         Stat::$timers->remove();
         unset($this->timers[$key]);
-        //TODO: workaround: need task manager
-        Loop::async(function() use ($timer) {
-          ($timer['callback'])();
-        });
+        
+        // Вместо выполнения на месте - отдаем менеджеру задач!
+        $this->scheduler->enqueue($timer['callback']);
       }
   }
 

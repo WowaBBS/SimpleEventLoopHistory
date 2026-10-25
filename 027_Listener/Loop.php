@@ -7,6 +7,7 @@ class Loop
   private static bool  $forceStop          = false; //Immideatly stop
   private static float $shiftTime          = 0;
   
+  private static Loop_TaskScheduler $scheduler     ;
   private static Loop_TimerManager  $timers        ;
   private static Loop_IoWatcher     $io            ;
   private static Loop_SignalTracker $signals       ;
@@ -16,7 +17,8 @@ class Loop
   {
     self::$shiftTime = hrtime(true);
     
-    self::$timers        = new Loop_TimerManager  (); //self::$scheduler);
+    self::$scheduler     = new Loop_TaskScheduler ();
+    self::$timers        = new Loop_TimerManager  (self::$scheduler);
     self::$io            = new Loop_IoWatcher     ();
     self::$signals       = new Loop_SignalTracker ();
     self::$watchingTimer = new Loop_WatchingTimer ();
@@ -91,6 +93,7 @@ class Loop
   {
     Stat::$ticks++;
     
+    // 1. Проверяем сигналы ОС
     self::$signals->dispatch();
 
     // Если во время обработки сигнала вызвали Loop::stop(), выходим
@@ -100,15 +103,23 @@ class Loop
     
     self::$watchingTimer->tick($now);
     
+    // 2. Даем менеджеру таймеров проверить дедлайны и перекинуть готовые задачи в планировщик тасок
     self::$timers->check($now);
 
-    // 2. Проверяем стримы через stream_select
-    self::$io->watch(self::$timers->getNextTimeout());
+    // 3. Выполняем все накопившиеся моментальные задачи (таски из пула + проснувшиеся таймеры)
+    self::$scheduler->flush();
+
+    // 4. Спрашиваем у менеджера таймеров, сколько времени мы можем безопасно спать на stream_select
+    $timeout = self::$timers->getNextTimeout();
+    
+    // 5. Опрашиваем дескрипторы сокетов
+    self::$io->watch($timeout);
     
     // Возвращаем флаг: есть ли ради чего крутить цикл дальше
-    return self::$timers  ->has()
-      ||   self::$io      ->has()
-      ||   self::$signals ->has();
+    return self::$scheduler ->has()
+      ||   self::$timers    ->has()
+      ||   self::$io        ->has()
+      ||   self::$signals   ->has();
   }
   
   // Удобный хелпер для запуска кода в изолированном файбере
