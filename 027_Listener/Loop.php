@@ -6,18 +6,18 @@ class Loop
   private static bool  $running            = false;
   private static bool  $stopping           = false; //Soft stop
   private static bool  $forceStop          = false; //Immideatly stop
-  private static array $signalCallbacks    = [];
-  private static bool  $signalsInitialized = false;
   private static float $shiftTime          = 0;
   
-  private static Loop_IoWatcher     $ioWatcher     ;
+  private static Loop_IoWatcher     $io            ;
+  private static Loop_SignalTracker $signals       ;
   private static Loop_WatchingTimer $watchingTimer ;
   
   static function init()
   {
     self::$shiftTime = hrtime(true);
     
-    self::$ioWatcher     = new Loop_IoWatcher     ();
+    self::$io            = new Loop_IoWatcher     ();
+    self::$signals       = new Loop_SignalTracker ();
     self::$watchingTimer = new Loop_WatchingTimer ();
     Loop_LeakTracker::init();
   }
@@ -38,76 +38,22 @@ class Loop
   }
 
   /**
-   * Подписка на системный сигнал (например, SIGINT / Ctrl+C)
-   */
-  static function addSignal(int $signal, callable $callback): void
-  {
-    self::$signalCallbacks[$signal][] = $callback;
-    self::initSignalHandling();
-  }
-
-  /**
    * Мягная остановка цикла событий
    */
   static function stop(?float $timeout=null): void
   {
     self::$stopping = true;
-    self::setTimeLimit($timeout?? self::$$stoppingLimit);
     
-    //TODO: notify tasks and remove true
-    if (true || ($timeout?? 1)<=0)
-    {
-      self::forceStop();
-      return;
-    }
+    self::$watchingTimer->onStop($timeout);
+    
+    //TODO: notify tasks and remove
+    if (true) self::forceStop();
   }
 
   /**
    * Немедленная остановка цикла событий
    */
   static function forceStop(): void { self::$forceStop = true; }
-
-  /**
-   * Инициализация обработчиков под текущую ОС
-   */
-  private static function initSignalHandling(): void
-  {
-    if (self::$signalsInitialized) return;
-
-    if (str_starts_with(PHP_OS, 'WIN'))
-    { // --- ВАРИАНТ ДЛЯ WINDOWS ---
-      if (function_exists('sapi_windows_set_ctrl_handler'))
-        sapi_windows_set_ctrl_handler(function (int $event) {
-          // PHP_WINDOWS_EVENT_CTRL_C - это константа нажатия Ctrl+C под Windows
-          if ($event === PHP_WINDOWS_EVENT_CTRL_C)
-          {
-            self::triggerSignal(2); // Имитируем SIGINT (2) для кроссплатформенности
-            return true; // Говорим ОС, что событие обработано
-          }
-          return false;
-        });
-    } 
-    else
-    { // --- ВАРИАНТ ДЛЯ UNIX (Linux, macOS) ---
-      if (function_exists('pcntl_signal'))
-      { // Регистрируем сигналы SIGINT (Ctrl+C) и SIGTERM (команда kill)
-        pcntl_signal(SIGINT, fn($sig) => self::triggerSignal($sig));
-        pcntl_signal(SIGTERM, fn($sig) => self::triggerSignal($sig));
-      }
-    }
-
-    self::$signalsInitialized = true;
-  }
-
-  /**
-   * Вызов всех зарегистрированных колбэков на этот сигнал
-   */
-  private static function triggerSignal(int $signal): void
-  {
-    if (isset(self::$signalCallbacks[$signal]))
-      foreach (self::$signalCallbacks[$signal] as $callback)
-        $callback($signal);
-  }
 
   /**
    * Выполняет ровно одну итерацию цикла событий.
@@ -154,9 +100,7 @@ class Loop
   {
     Stat::$ticks++;
     
-    // КРИТИЧНО ДЛЯ UNIX: Проверяем, не пришли ли сигналы PCNTL
-    if(!str_starts_with(PHP_OS, 'WIN') && function_exists('pcntl_signal_dispatch'))
-      pcntl_signal_dispatch();
+    self::$signals->dispatch();
 
     // Если во время обработки сигнала вызвали Loop::stop(), выходим
     if (self::$forceStop) return false;
@@ -185,10 +129,12 @@ class Loop
     }
 
     // 2. Проверяем стримы через stream_select
-    self::$ioWatcher->tick($timeout);
+    self::$io->watch($timeout);
     
     // Возвращаем флаг: есть ли ради чего крутить цикл дальше
-    return !empty(self::$timers) || self::$ioWatcher->has();
+    return !empty(self::$timers)
+      || self::$io      ->has()
+      || self::$signals ->has();
   }
   
   // Удобный хелпер для запуска кода в изолированном файбере
@@ -223,10 +169,19 @@ class Loop
 // IO Watcher
 
   // Подписаться на появление данных в сокете/потоке
-  static function addReadStream($stream, callable $callback): void { self::$ioWatcher->addReadStream($stream, $callback); }
+  static function addReadStream($stream, callable $callback): void { self::$io->addRead($stream, $callback); }
 
   // Отписаться от потока
-  static function removeReadStream($stream): void { self::$ioWatcher->removeReadStream($stream); }
+  static function removeReadStream($stream): void { self::$io->removeRead($stream); }
+
+//****************************************************************
+// Signal Tracker
+
+  /**
+   * Подписка на системный сигнал (например, SIGINT / Ctrl+C)
+   */
+  static function addSignal(int $signal, callable $callback): void { self::$signals->add($signal, $callback); }
+
 
 //****************************************************************
 // Watching timer

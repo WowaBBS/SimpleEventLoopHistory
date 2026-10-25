@@ -39,4 +39,11 @@ class Loop_WatchingTimer
         set_time_limit(ceil($limit));
     }
   }
+  
+  function onStop(?float $timeout=null)
+  {
+    $this->setTimeLimit($timeout?? $this->stoppingLimit);
+    if (($timeout?? 1)<=0)
+      self::forceStop();
+  }
 }
