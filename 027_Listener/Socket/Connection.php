@@ -6,33 +6,52 @@ class SocketConnection
 {
   protected $socket;
   protected int $id;
-  /** @var callable */
-  private $onDataCallback;
+  private bool $isReading = false;
+  /** @var callable|null */
+  private $readCallback = null;
 
-  function __construct($socket, callable $onDataCallback)
+  function __construct($socket)
   {
     if (!is_resource($socket))
       throw new \InvalidArgumentException('SocketConnection ожидает валидный ресурс сокета.');
   
     $this->socket = $socket;
     $this->id = (int)$socket;
-    $this->onDataCallback = $onDataCallback;
 
     stream_set_blocking($socket, false);
     
     $this->log('New connection');
-    
-    // Полная инкапсуляция: сокет сам начинает слушать сеть при создании!
-    Loop::addReadStream($this->socket, $this->handleRead(...));
   }
 
   function getId(): int { return $this->id; }
   function getResource() { return $this->socket; }
 
+  /**
+   * Включает неблокирующее чтение из сокета.
+   * Переданный колбэк будет вызываться каждый раз, когда прилетают сырые байты.
+   */
+  public function resumeRead(callable $onData): void
+  {
+    $this->readCallback = $onData;
+    if ($this->isReading) return;
+    $this->isReading = true;
+    // Полная инкапсуляция: сокет сам начинает слушать сеть при создании!
+    Loop::addReadStream($this->socket, $this->handleRead(...));
+  }
+
+  /** Выключает чтение из сокета (снимает нагрузку с IoWatcher) */
+  public function pauseRead(): void
+  {
+    if (!$this->isReading) return;
+    $this->isReading = false;
+    $this->readCallback = null;
+    Loop::removeReadStream($this->socket);
+  }
+
   /** Внутренний метод чтения данных из сокета */
   private function handleRead($stream): void
   {
-    $chunk = fread($stream, 8192);
+    $chunk = fread($stream, 65536); // Читаем большим чанком для скорости
     if ($chunk === '' || $chunk === false)
     {
       $this->close();
@@ -40,7 +59,10 @@ class SocketConnection
     }
 
     // Передаем прочитанный чанк наверх в обработчик (например, в HttpConnection)
-    ($this->onDataCallback)($chunk);
+    if ($this->readCallback) //TODO: ???
+      ($this->readCallback)($chunk);
+    else
+      Logger::error('Readed data withhout a handler')->backtrace(); //TODO: It's inpossible
   }
 
   /**

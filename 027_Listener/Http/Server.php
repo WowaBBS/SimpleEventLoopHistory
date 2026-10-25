@@ -52,10 +52,10 @@ class HttpServer
     $clientSocket = @stream_socket_accept($serverSocket, 0); // 0 - таймаут мгновенно
     if (!$clientSocket) return;
     
-    stream_set_blocking($clientSocket, false);
+    $transport = new SocketConnection($clientSocket);
 
     // Создаем объект-обёртку для HTTP протокола
-    new HttpConnection($clientSocket, $this->onClientRequestReady(...));
+    new HttpConnection($transport, $this->onClientRequestReady(...));
   }
 
   /** Вызывается из HttpConnection, когда http-запрос полностью вычитан из сети */

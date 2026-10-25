@@ -10,13 +10,14 @@ class HttpConnection
   /** @var callable */
   private $requestReadyCallback;
 
-  function __construct($socket, callable $requestReadyCallback)
+  function __construct(SocketConnection $transport, callable $requestReadyCallback)
   {
     $this->requestReadyCallback = $requestReadyCallback;
 
     // Передаем SocketConnection самого себя в качестве фабрики,
     // внедряя колбэк накопления буфера HTTP
-    $this->transport = new SocketConnection($socket, $this->appendBuffer(...));
+    $this->transport = $transport;
+    $transport->resumeRead($this->appendBuffer(...));
   }
 
   private function appendBuffer(string $chunk): void
