@@ -16,7 +16,7 @@ class HttpServer
    * Запуск сервера. Метод возвращает Promise, который резолвится при старте,
    * но сам сервер продолжает крутиться в фоне внутри Event Loop.
    */
-  public function listen(): Promise
+  function listen(): Promise
   {
     $deferred = new Deferred();
 
@@ -38,7 +38,7 @@ class HttpServer
     // Листенер ждет новые соединения через IoWatcher (Read-событие на серверном сокете)
     Loop::addReadStream($this->serverSocket, $this->acceptConnection(...));
 
-    Logger::log("Server successfully started and is listening: {$this->address}");
+    Logger::log("TCP/HTTP server successfully started and is listening: {$this->address}");
     $deferred->resolve($this);
 
     return $deferred->promise();
@@ -55,32 +55,13 @@ class HttpServer
     stream_set_blocking($clientSocket, false);
 
     // Создаем объект-обёртку для HTTP протокола
-    $connection = new HttpConnection($clientSocket);
-    $connection->log('New connection');
+    new HttpConnection($clientSocket, $this->onClientRequestReady(...));
+  }
 
-    $buffer = '';
-    // Регистрируем клиентский сокет на чтение данных
-    Loop::addReadStream($clientSocket, function($stream) use ($connection, &$buffer) {
-      $chunk = fread($stream, 8192);
-
-      if ($chunk === '' || $chunk === false)
-      { // Клиент закрыл соединение или произошла ошибка
-        $connection->close();
-        return;
-      }
-
-      $buffer .= $chunk;
-
-      // Для простоты HTTP-сервера: проверяем, долетели ли заголовки полностью (разделитель \r\n\r\n)
-      if (!str_contains($buffer, "\r\n\r\n")) return;
-      
-      // Перестаем слушать чтение, пока обрабатываем этот запрос
-      Loop::removeReadStream($stream);
-
-      // Запускаем обработку запроса в изолированном ФАЙБЕРЕ!
-      // Это позволит разработчику внутри обработчика делать await()!
-      Loop::async($this->handleClientRequest(...), $connection, $buffer);
-    });
+  /** Вызывается из HttpConnection, когда http-запрос полностью вычитан из сети */
+  private function onClientRequestReady(HttpConnection $connection, string $requestData): void
+  {
+    Loop::async($this->handleClientRequest(...), $connection, $requestData);
   }
 
   /**
@@ -93,18 +74,21 @@ class HttpServer
       // Вызываем пользовательский обработчик, передавая туда сырой запрос.
       // Если внутри обработчика будет вызван await() (например, запрос к БД или файлу),
       // этот файбер замрет, но сервер продолжит принимать других клиентов!
-      $responseBody = ($this->handler)($requestData, $connection);
+      $result = ($this->handler)($requestData, $connection);
       
-      if ($responseBody === true) return;
-      if (is_string($responseBody))
-        $connection->sendResponse(200, 'Ok', $responseBody);
-      else
-        $connection->sendResponse(404, 'Not Found', 'Not Found');
+      // --- УМНЫЙ РОУТИНГ ПО РЕЗУЛЬТАТУ ВЫПОЛНЕНИЯ ХЕНДЛЕРА ---      
+      
+      // Сценарий 1: Хендлер сам отправил все данные (например, /bigfile)
+      if ($result === true) return;
+      if (is_string($result)) // Сценарий 2: Хендлер просто вернул строку - отдаем её со статусом 200
+        $connection->sendResponse(200, 'Ok', $result);
+      else // Сценарий 3: Страница не найдена - отдаем красивую 404
+        $connection->sendResponse(404, 'Not Found', '<h1>Page not found</h1>');
     }
     catch (\Throwable $e)
     {
       $connection->log('Processing error')->exception($e);
-      $connection->sendResponse(500, 'Internal Server Error', 'Internal Error');
+      try { $connection->sendResponse(500, 'Internal Server Error', '<h1>Internal Server Error</h1>'); } catch (\Throwable) {}
     }
     finally
     {

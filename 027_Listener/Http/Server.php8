@@ -2,21 +2,21 @@
 include '../_All.Cli.php';
 
 // Бизнес-логика обработки HTTP-запроса
-$httpHandler = function(string $rawRequest, HttpConnection $connection): bool|string {
+$httpHandler = function(string $rawRequest, HttpConnection $connection): bool|string
+{
   // Парсим первую строчку HTTP запроса (например: GET /index.html HTTP/1.1)
-  $lines = explode("\r\n", $rawRequest);
+  $lines = explode("\r\n", $rawRequest,2);
   preg_match('/GET\s+(\/[^\s]*)/', $lines[0], $matches);
   $path = $matches[1] ?? '/';
 
   $connection->log('Path requested: ', $path);
 
-  // --- РОУТ: ОСТАНОВКА СЕРВЕРА ---
+  // Сценарий А: Выход через веб
   if ($path === '/exit')
   {
     $connection->log('Command received for web-based exits...');
 
-    // Останавливаем цикл событий приложения
-    Loop::stop();
+    Loop::delay(0.1, Loop::stop(...)); // Останавливаем Loop на следующем тике
     
     return <<<HereDoc
       <h1>The server is stopping...</h1>
@@ -25,7 +25,7 @@ $httpHandler = function(string $rawRequest, HttpConnection $connection): bool|st
       HereDoc;
   }
   
-  // --- РОУТ: СТРИМИНГ БОЛЬШОГО ФАЙЛА С ЧЕСТНЫМ BACKPRESSURE ---
+  // Сценарий Б: Стриминг большого файла с проверкой обрыва связи
   if ($path === '/bigfile')
   {
     $connection->sendHeaders(200, 'OK', [
@@ -42,7 +42,9 @@ $httpHandler = function(string $rawRequest, HttpConnection $connection): bool|st
 
     for ($i = 1; $i <= $totalChunks; $i++)
     { // Метод сам прозрачно управляет Backpressure и усыпляет файбер при необходимости
-      $connection->sendChunk($dummyData);
+      // КРИТИЧНО: Если sendChunk() вернул false, значит клиент отсоединился!
+      // Мы МЯГКО прерываем цикл генерации файла, не генерируя исключений.
+      if (!$connection->sendChunk($dummyData)) return true;
 
       if ($i % 50 === 0)
         $connection->log('Sent ', $i, ' MB');
@@ -92,6 +94,7 @@ $httpHandler = function(string $rawRequest, HttpConnection $connection): bool|st
        <li>Try visiting <a href='/slow'>/slow</a> for testing multitasking.</li>
        <li>Downloading a large file with backpressure: <a href='/bigfile'>/bigfile</a></li>
        <li>Stop the server: <a href='/exit'>/exit</a></li>
+       <li>Non-existent page: <a href='/unknown'>/unknown</a></li>
       </ul>
     HereDoc;
   }
