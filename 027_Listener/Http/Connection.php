@@ -1,6 +1,10 @@
 <?
-class HttpConnection extends SocketConnection
+/**
+ * ПРИКЛАДНОЙ УРОВЕНЬ ПРОТОКОЛА (HTTP)
+ */
+class HttpConnection
 {
+  private SocketConnection $transport;
   private string $buffer = '';
   private bool $headersSent = false;
   /** @var callable */
@@ -9,8 +13,10 @@ class HttpConnection extends SocketConnection
   function __construct($socket, callable $requestReadyCallback)
   {
     $this->requestReadyCallback = $requestReadyCallback;
-    // Передаем свой собственный метод накопления буфера в базовый конструктор
-    parent::__construct($socket, $this->appendBuffer(...));
+
+    // Передаем SocketConnection самого себя в качестве фабрики,
+    // внедряя колбэк накопления буфера HTTP
+    $this->transport = new SocketConnection($socket, $this->appendBuffer(...));
   }
 
   private function appendBuffer(string $chunk): void
@@ -21,7 +27,7 @@ class HttpConnection extends SocketConnection
     if (!str_contains($this->buffer, "\r\n\r\n")) return;
     
     // Заголовки получены полностью. Снимаем сокет с чтения, чтобы не читать лишнего
-    Loop::removeReadStream($this->socket);
+    Loop::removeReadStream($this->transport->getResource());
 
     // Вызываем колбэк сервера, передавая накопленный запрос
     ($this->requestReadyCallback)($this, $this->buffer);
@@ -44,7 +50,7 @@ class HttpConnection extends SocketConnection
     $this->headersSent = true;
     // Записываем ответ клиенту.
     // В идеале запись тоже должна быть через write-стримы Loop, но для базы используем прямую отправку
-    return $this->write($response);
+    return $this->transport->write($response); // Делегируем запись транспорту
   }
 
   /**
@@ -61,7 +67,7 @@ class HttpConnection extends SocketConnection
     if (!$this->sendHeaders($statusCode, $statusText, $headers))
       return false;
     
-    return $this->write($body);
+    return $this->transport->write($body);
   }
 
   /**
@@ -71,9 +77,14 @@ class HttpConnection extends SocketConnection
   function sendChunk(string $data): bool
   {
     if (!$this->headersSent)
-      throw new \LogicException('Нельзя отправлять данные без предварительной отправки заголовков.');
+      throw new \LogicException("Нельзя отправлять данные без заголовков.");
     
     // Используем базовый асинхронный метод записи с Backpressure
-    return $this->write($data);
+    return $this->transport->write($data);
   }
+
+  /** Проксируем ID и Логгер наружу для удобства хендлера */
+  function getId(): int { return $this->transport->getId(); }
+  function close(): void { $this->transport->close(); }
+  function log(mixed ...$args): void { $this->transport->log(...$args); }
 }
