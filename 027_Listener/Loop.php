@@ -1,13 +1,13 @@
 <?
 class Loop
 {
-  private static array $timers             = [];
   private static array $fibers             = [];
   private static bool  $running            = false;
   private static bool  $stopping           = false; //Soft stop
   private static bool  $forceStop          = false; //Immideatly stop
   private static float $shiftTime          = 0;
   
+  private static Loop_TimerManager  $timers        ;
   private static Loop_IoWatcher     $io            ;
   private static Loop_SignalTracker $signals       ;
   private static Loop_WatchingTimer $watchingTimer ;
@@ -16,6 +16,7 @@ class Loop
   {
     self::$shiftTime = hrtime(true);
     
+    self::$timers        = new Loop_TimerManager  (); //self::$scheduler);
     self::$io            = new Loop_IoWatcher     ();
     self::$signals       = new Loop_SignalTracker ();
     self::$watchingTimer = new Loop_WatchingTimer ();
@@ -27,16 +28,6 @@ class Loop
 //static function getTime() { return microtime(true); }
   static function getTime() { return (hrtime(true)-self::$shiftTime)*1e-9; }
   
-  // Добавить отложенную задачу (таймер)
-  static function delay(float $seconds, callable $callback): void
-  {
-    Stat::$timers->add();
-    self::$timers[] = [
-      'execute_at' => self::getTime() + $seconds,
-      'callback'   => $callback
-    ];
-  }
-
   /**
    * Мягная остановка цикла событий
    */
@@ -108,33 +99,16 @@ class Loop
     $now = self::getTime();
     
     self::$watchingTimer->tick($now);
-
-    // 1. Обрабатываем таймеры, у которых подошло время
-    foreach (self::$timers as $key => $timer)
-      if ($now >= $timer['execute_at'])
-      {
-        Stat::$timers->remove();
-        unset(self::$timers[$key]);
-        //TODO: workaround: need task manager
-        Loop::async(function() use ($timer) {
-          ($timer['callback'])();
-        });
-      }
-
-    $timeout = 1;
-    if (!empty(self::$timers))
-    {
-      $nextTimer = min(array_column(self::$timers, 'execute_at'));
-      $timeout = max(0, $nextTimer - self::getTime());
-    }
+    
+    self::$timers->check($now);
 
     // 2. Проверяем стримы через stream_select
-    self::$io->watch($timeout);
+    self::$io->watch(self::$timers->getNextTimeout());
     
     // Возвращаем флаг: есть ли ради чего крутить цикл дальше
-    return !empty(self::$timers)
-      || self::$io      ->has()
-      || self::$signals ->has();
+    return self::$timers  ->has()
+      ||   self::$io      ->has()
+      ||   self::$signals ->has();
   }
   
   // Удобный хелпер для запуска кода в изолированном файбере
@@ -166,6 +140,12 @@ class Loop
   }
 
 //****************************************************************
+// Timers
+
+  // Добавить отложенную задачу (таймер)
+  static function delay(float $seconds, callable $callback): void { self::$timers->add($seconds, $callback); }
+
+//****************************************************************
 // IO Watcher
 
   // Подписаться на появление данных в сокете/потоке
@@ -189,8 +169,11 @@ class Loop
   static function setTimeLimit(float $seconds, float $hard=10) { self::$watchingTimer->setTimeLimit($seconds, $hard); }
 
 //****************************************************************
+// Memory leak detector
+
   static function LeakTracker_fetchFibers() { $result = self::$fibers; self::$fibers = []; return $result; }
-  static function LeakTracker_fetchTimers() { $result = self::$timers; self::$timers = []; return $result; }
+  static function LeakTracker_fetchTimers() { return self::$timers->LeakTracker_fetchTimers(); }
+
 //****************************************************************
 }
 
