@@ -1,5 +1,5 @@
 <?
-class AsyncServer
+class HttpServer
 {
   private $serverSocket;
   private string $address;
@@ -54,18 +54,18 @@ class AsyncServer
     
     stream_set_blocking($clientSocket, false);
 
-    $clientId = (int)$clientSocket;
-    Logger::log("[Client #$clientId] New connection");
+    // Создаем объект-обёртку для HTTP протокола
+    $connection = new HttpConnection($clientSocket);
+    $connection->log('New connection');
 
     $buffer = '';
     // Регистрируем клиентский сокет на чтение данных
-    Loop::addReadStream($clientSocket, function($stream) use ($clientSocket, $clientId, &$buffer) {
+    Loop::addReadStream($clientSocket, function($stream) use ($connection, &$buffer) {
       $chunk = fread($stream, 8192);
 
       if ($chunk === '' || $chunk === false)
-      {
-        // Клиент закрыл соединение или произошла ошибка
-        $this->closeClient($clientSocket, $clientId);
+      { // Клиент закрыл соединение или произошла ошибка
+        $connection->close();
         return;
       }
 
@@ -75,58 +75,40 @@ class AsyncServer
       if (!str_contains($buffer, "\r\n\r\n")) return;
       
       // Перестаем слушать чтение, пока обрабатываем этот запрос
-      Loop::removeReadStream($clientSocket);
+      Loop::removeReadStream($stream);
 
       // Запускаем обработку запроса в изолированном ФАЙБЕРЕ!
       // Это позволит разработчику внутри обработчика делать await()!
-      Loop::async($this->handleClientRequest(...), $clientSocket, $clientId, $buffer);
+      Loop::async($this->handleClientRequest(...), $connection, $buffer);
     });
   }
 
   /**
    * Асинхронная обработка бизнес-логики внутри файбера
    */
-  private function handleClientRequest($clientSocket, int $clientId, string $requestData): void
+  private function handleClientRequest(HttpConnection $connection, string $requestData): void
   {
     try
     {
       // Вызываем пользовательский обработчик, передавая туда сырой запрос.
       // Если внутри обработчика будет вызван await() (например, запрос к БД или файлу),
       // этот файбер замрет, но сервер продолжит принимать других клиентов!
-      $responseBody = ($this->handler)($requestData, $clientSocket, $clientId);
+      $responseBody = ($this->handler)($requestData, $connection);
       
-      if (!is_string($responseBody)) return;
-      
-      // Формируем честный HTTP/1.1 ответ
-      $httpResponse = "HTTP/1.1 200 OK\r\n" .
-              "Content-Type: text/html; charset=utf-8\r\n" .
-              "Content-Length: " . strlen($responseBody) . "\r\n" .
-              "Connection: close\r\n\r\n" .
-              $responseBody;
-
-      // Записываем ответ клиенту.
-      // В идеале запись тоже должна быть через write-стримы Loop, но для базы используем прямую отправку
-      @fwrite($clientSocket, $httpResponse);
+      if ($responseBody === true) return;
+      if (is_string($responseBody))
+        $connection->sendResponse(200, 'Ok', $responseBody);
+      else
+        $connection->sendResponse(404, 'Not Found', 'Not Found');
     }
     catch (\Throwable $e)
     {
-      Logger::log("[Client #$clientId] Processing error: " . $e->getMessage());
-      $errorResponse = "HTTP/1.1 500 Internal Server Error\r\nConnection: close\r\n\r\nInternal Error";
-      @fwrite($clientSocket, $errorResponse);
+      $connection->log('Processing error')->exception($e);
+      $connection->sendResponse(500, 'Internal Server Error', 'Internal Error');
     }
     finally
     {
-      $this->closeClient($clientSocket, $clientId);
+      $connection->close();
     }
-  }
-
-  private function closeClient($clientSocket, int $clientId): void
-  {
-    Loop::removeReadStream($clientSocket);
-    Loop::removeWriteStream($clientSocket);
-    if (is_resource($clientSocket))
-      fclose($clientSocket);
-    
-    Logger::log("[Client #$clientId] Connection closed");
   }
 }

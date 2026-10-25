@@ -1,0 +1,113 @@
+<?
+include '../_All.Cli.php';
+
+// Бизнес-логика обработки HTTP-запроса
+$httpHandler = function(string $rawRequest, HttpConnection $connection): bool|string {
+  // Парсим первую строчку HTTP запроса (например: GET /index.html HTTP/1.1)
+  $lines = explode("\r\n", $rawRequest);
+  preg_match('/GET\s+(\/[^\s]*)/', $lines[0], $matches);
+  $path = $matches[1] ?? '/';
+
+  $connection->log('Path requested: ', $path);
+
+  // --- РОУТ: ОСТАНОВКА СЕРВЕРА ---
+  if ($path === '/exit')
+  {
+    $connection->log('Command received for web-based exits...');
+
+    // Останавливаем цикл событий приложения
+    Loop::stop();
+    
+    return <<<HereDoc
+      <h1>The server is stopping...</h1>
+      <p>The Event Loop has completed successfully.</p>
+      <a href='/'>root</a>
+      HereDoc;
+  }
+  
+  // --- РОУТ: СТРИМИНГ БОЛЬШОГО ФАЙЛА С ЧЕСТНЫМ BACKPRESSURE ---
+  if ($path === '/bigfile')
+  {
+    $connection->sendHeaders(200, 'OK', [
+      'Content-Type'        => 'application/octet-stream',
+      'Content-Disposition' => 'attachment; filename="huge_generated_file.bin"',
+      'Connection'          => 'close',
+    ]);
+
+    $connection->log('Starting generation and streaming of a huge file...');
+
+    $chunkSize = 1024 * 1024; // 1 Мегабайт
+    $dummyData = str_repeat('B', $chunkSize);
+    $totalChunks = 1500; // Генерируем 1500 МБ на лету
+
+    for ($i = 1; $i <= $totalChunks; $i++)
+    { // Метод сам прозрачно управляет Backpressure и усыпляет файбер при необходимости
+      $connection->sendChunk($dummyData);
+
+      if ($i % 50 === 0)
+        $connection->log('Sent ', $i, ' MB');
+
+      sleepAsync(0)->await();
+    }
+
+    $connection->log('File streaming completed successfully!');
+    return true;
+  }
+
+  // Сценарий 1: Медленная страница (имитируем тяжелый SQL-запрос)
+  if ($path === '/slow')
+  {
+    $connection->log('Starting heavy computations for 2 seconds...');
+    
+    // МАГИЯ ФАЙБЕРОВ: файбер этого клиента замирает на 2 секунды.
+    // Но весь сервер НЕ виснет! Другие люди могут заходить на корень '/' без задержек.
+    sleepAsync(2.0)->await();
+    
+    return <<<HereDoc
+      <h1>Slow page</h1>
+      <p>Data from the asynchronous database was successfully retrieved after 2 seconds!</p>
+      <a href='/'>root</a>
+      HereDoc;
+  }
+
+  // Сценарий 2: Асинхронное чтение файла с диска через наш конвейер/обертку
+  if ($path === '/file')
+  { // Допустим, читаем лог-файл (если он есть)
+    // $content = AsyncFile::readAll('server.log')->await();
+    return <<<HereDoc
+      <h1>File manager</h1>
+      <p>This could have been a non-blocking read of a large file.</p>
+      <a href='/'>root</a>
+      HereDoc;
+  }
+
+  if ($path === '/')
+  { // Сценарий 3: Дефолтная быстрая страница
+    return <<<HereDoc
+      <h1>Asynchronous PHP Framework.</h1>
+      <h2>Greetings from a custom PHP server! ??</h2>
+      <p>Your connection ID: <b>{$connection->getId()}</b></p>
+      <p>The business logic is completely isolated within the handler!</p>
+      <ul>
+       <li>Try visiting <a href='/slow'>/slow</a> for testing multitasking.</li>
+       <li>Downloading a large file with backpressure: <a href='/bigfile'>/bigfile</a></li>
+       <li>Stop the server: <a href='/exit'>/exit</a></li>
+      </ul>
+    HereDoc;
+  }
+  
+  return false;
+};
+
+// Запускаем сервер
+Loop::async(function() use ($httpHandler) {
+  $server = new HttpServer('tcp://127.0.0.1:8080', $httpHandler);
+  
+  // listen() возвращает Promise, дожидаемся бинда порта
+  $server->listen()->await();
+});
+
+// КРИТИЧНО: Запускаем бесконечный цикл событий, который будет слушать входящие сокеты
+Logger::log('--- Entering the server\'s main event loop ---');
+Loop::run();
+unset($httpHandler);
