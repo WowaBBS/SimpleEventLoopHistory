@@ -1,9 +1,22 @@
 <?
+for($F=__FILE__; $F;) if(@include($F=DirName($F)).'/Using.php') break; unset($F);
+  
+$Loader->AutoDispose();
+$Loader->Load_Lib('/Debug/Format');
+$Loader->Load_Lib('/Log/Logger');
+$Loader->GetLogger()->ScriptLog();
+
+unset($Loader);
+
+C_Debug_Template::$Closure_Use    =false;
+C_Debug_Template::$Closure_This   =false;
+C_Debug_Template::$Closure_Params =false;
+
 (function() {
   //$argv, $argc, $_GET, $_POST, $_COOKIE, $_FILES, $_ENV, $_REQUEST, $_SERVER
   $globalsKeysInitial = Array_Flip(Array_Keys($GLOBALS));
 
-  register_shutdown_function(function() use($globalsKeysInitial){
+  \WLib\Object\T_ShutDown::Register(function() use($globalsKeysInitial){
     // Запускаем Цикл Событий
     Loop::run();
     
@@ -12,7 +25,7 @@
     foreach ($globalsKeys As $key)
       if (!array_key_exists($key, $globalsKeysInitial))
       {
-        $removed[]=$key;
+        $removed[] = $key;
         unset($GLOBALS[$key]);
       }
     if ($removed)
@@ -27,8 +40,6 @@
       Stat::debug();
     else
       Logger::log('It tooks ', round($executionTime, 2), ' seconds');
-  
-    \WLib\Object\C_Loader::Get()->Dispose();
   });
   
   $Dir=GetCwd();
@@ -39,15 +50,3 @@
   
   ChDir($Dir);
 })();
-
-for($F=__FILE__; $F;) if(@include($F=DirName($F)).'/Using.php') break; unset($F);
-  
-unset($Loader);
-
-\WLib\Object\C_Loader::Get()->GetLogger()->ScriptLog();
-\WLib\Object\C_Loader::Get()->Load_Lib('/Debug/Format');
-\WLib\Object\C_Loader::Get()->Load_Lib('/Log/Logger');
-
-C_Debug_Template::$Closure_Use    =false;
-C_Debug_Template::$Closure_This   =false;
-C_Debug_Template::$Closure_Params =false;

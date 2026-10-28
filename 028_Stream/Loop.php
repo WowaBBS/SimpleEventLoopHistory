@@ -191,4 +191,4 @@ class Loop
 }
 
 Loop::init();
-register_shutdown_function(Loop::dispose(...));
+\WLib\Object\T_ShutDown::Register(Loop::dispose(...));
