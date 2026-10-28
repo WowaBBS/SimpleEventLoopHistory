@@ -33,7 +33,7 @@ class Loop_IoWatcher
     if (!$this->readStreams && !$this->writeStreams)
     {
       Stat::$sleep->begin();
-      usleep((int)($timeout*1000000)); // Маленький сон, если задач нет, чтобы не перегружать CPU
+      usleep((int)($timeout * 1_000_000)); // Маленький сон, если задач нет, чтобы не перегружать CPU
       Stat::$sleep->end($timeout);
       return;
     }
@@ -45,7 +45,7 @@ class Loop_IoWatcher
     
     // Таймаут для select: берем время до ближайшего таймера или 1 секунду
     $tv_sec  = (int)$timeout;
-    $tv_usec = (int)(($timeout - $tv_sec) * 1000000);
+    $tv_usec = (int)(($timeout - $tv_sec) * 1_000_000);
 
     // Ждем системного уведомления о готовности потоков
     // Ошибка stream_select прерывает функцию при получении системного сигнала на Linux,

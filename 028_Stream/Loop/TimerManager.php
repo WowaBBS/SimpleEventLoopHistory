@@ -2,8 +2,9 @@
 class Loop_TimerManager
 {
   private Loop_TaskScheduler $scheduler;
-  private array $timers = [];
-  private float $nextTimeout = 0;
+  private array $timers       =[];
+  private float $nextTimeout  = 0;
+  public  float $idleTimeTick =.1;
 
   function __construct(Loop_TaskScheduler $scheduler) { $this->scheduler = $scheduler; }
 
@@ -39,7 +40,7 @@ class Loop_TimerManager
 
   function getNextTimeout(): float
   { //TODO: Optimize
-    $timeout = 1;
+    $timeout = $this->idleTimeTick;
     if (!empty($this->timers))
     {
       $nextTimer = min(array_column($this->timers, 'execute_at'));
