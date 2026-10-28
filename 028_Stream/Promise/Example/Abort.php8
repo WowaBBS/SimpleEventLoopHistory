@@ -1,0 +1,44 @@
+<?
+include '../../_All.Cli.php';
+
+// Подготовим тестовые файлы
+$f1=LargeFile('file1.txt', 'Data 1 ', 100_000);
+$f2=LargeFile('file2.txt', 'Data 2 ', 100_000);
+$f3=LargeFile('file3.txt', 'Data 3 ', 100_000);
+
+//Loop::async(function() {
+  $controller = new AbortController();
+  $signal = $controller->getSignal();
+
+  global $f1, $f2, $f3;
+  // Создаем промисы чтения файлов и навешиваем их на один AbortController / AbortSignal
+  $p1 = FileReaderChunk::readAll($f1)->abortBy($signal);
+  $p2 = FileReaderChunk::readAll($f2)->abortBy($signal);
+  $p3 = FileReaderChunk::readAll($f3)->abortBy($signal);
+  
+  // Имитируем отмену всей группы задач через 1 секунду
+  Loop::delay(1, function() use ($controller) {
+    Logger::log('[Event] Cancel the entire group of tasks!');
+    $controller->abort('Bulk cancellation by administrator.');
+  });
+
+  // Функция для безопасного await
+  $safeAwait = function(Promise $p, string $name) {
+    try
+    {
+      $p->await();
+      Logger::log("[$name] Successfully read!");
+    }
+    catch (AbortException $e)
+    {
+      Logger::log("[$name] Interrupted: ", $e->getMessage());
+    }
+  };
+
+  // Запускаем ожидание
+  $safeAwait($p1, 'File 1');
+  $safeAwait($p2, 'File 2');
+  $safeAwait($p3, 'File 3');
+//});
+
+Loop::run();

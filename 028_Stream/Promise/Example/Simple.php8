@@ -1,0 +1,17 @@
+<?
+include '../../_All.Cli.php';
+
+// Пример интерфейса, к которому стоит стремиться
+$deferred = new Deferred();
+
+$deferred->promise()
+  ->then(function($value) {
+    Logger::log('Sucess: ', $value);
+  })
+  ->catch(function($reason) {
+    Logger::log('Error: ', $reason->getMessage());
+  });
+
+// Где-то в асинхронном коде:
+$deferred->resolve('Data received!');
+$deferred->resolve('Data received2!');

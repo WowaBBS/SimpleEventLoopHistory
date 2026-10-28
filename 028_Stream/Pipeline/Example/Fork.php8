@@ -1,0 +1,43 @@
+<?
+include '../../_All.Cli.php';
+include 'Data.php';
+
+Loop::setTimeLimit(9, 1); //Added 5+4 seconds!!!
+
+//Loop::async(function(){
+(function(){
+  // 1. Создаем корневой пайплайн
+  [$p1, $p2]=Pipeline::from(MockDB::get()->queryAsyncStream('SELECT * FROM TableA'))
+    ->fork(function($Pipeline){
+      return [
+        // 2. Делаем первого потребителя (Потоковое логирование)
+        $Pipeline->map(function($row) {
+          Logger::log('[Consumer 1] Log: ', $row['name']);
+          return $row;
+        })->collect(),
+        // 3. Делаем второго потребителя (Параллельно считает сумму)
+        $Pipeline->map(function($row) {
+          Logger::log('[Consumer 2] Summation: ', $row['name']);
+          return $row;
+        })->map(fn($r) => 10)->sum(),
+      ]; // Запускаем оба в сбор
+    });
+
+  // Через 1 с принудительно отменяем только Потребителя ј1
+  Loop::delay(1, function() use ($p1) {
+    Logger::log('?? We are cancelling only Consumer 1.!');
+    $p1->abort('We are no longer logging.');
+  });
+
+  // Ждем второй пайплайн
+  try
+  {
+    $total = $p2->await();
+    Logger::log('?? Consumer 2 has successfully completed its task! Amount: ', $total);
+  }
+  catch (\Throwable $e)
+  {
+    Logger::log('Consumer 2 failed: ', $e->getMessage());
+  }
+})();
+//});
