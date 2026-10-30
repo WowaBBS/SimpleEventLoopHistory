@@ -3,6 +3,7 @@ include '../../_All.Cli.php';
 include 'Data.php';
 
 //Loop::async(function(){
+(function(){
   try
   {
     Logger::log('[Pipeline] Launching heavy data pipeline...');
@@ -34,5 +35,7 @@ include 'Data.php';
   {
     Logger::log('[Result] The final promise was interrupted.');
   }
+})();
 //});
+
 Logger::log('-- End and contune uncancelable --');

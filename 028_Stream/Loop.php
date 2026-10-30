@@ -1,12 +1,12 @@
 <?
 class Loop
 {
-  private static array $fibers             = [];
   private static bool  $running            = false;
   private static bool  $stopping           = false; //Soft stop
   private static bool  $forceStop          = false; //Immideatly stop
   private static float $shiftTime          = 0;
   
+  private static Loop_Fibers        $fibers        ;
   private static Loop_TaskScheduler $scheduler     ;
   private static Loop_TimerManager  $timers        ;
   private static Loop_IoWatcher     $io            ;
@@ -17,6 +17,7 @@ class Loop
   {
     self::$shiftTime = hrtime(true);
     
+    self::$fibers        = new Loop_Fibers        ();
     self::$scheduler     = new Loop_TaskScheduler ();
     self::$timers        = new Loop_TimerManager  (self::$scheduler);
     self::$io            = new Loop_IoWatcher     ();
@@ -25,7 +26,11 @@ class Loop
     Loop_LeakTracker::init();
   }
   
-  static function dispose() { Loop_LeakTracker::checkLost(); }
+  static function dispose()
+  {
+    self::$fibers->dispose();
+    Loop_LeakTracker::checkLost();
+  }
   
 //static function getTime() { return microtime(true); }
   static function getTime() { return (hrtime(true)-self::$shiftTime)*1e-9; }
@@ -125,31 +130,9 @@ class Loop
   // Удобный хелпер для запуска кода в изолированном файбере
   static function async(callable $callback, ...$args): void
   {
-    $callback = function() use($callback, $args)
-    {
-      $fiber = Fiber::getCurrent();
-      $id    = spl_object_id($fiber);
-      self::$fibers[$id] = $fiber;
-      Stat::$fiber->add();
-      try
-      {
-        $callback(...$args);
-      }
-      catch(\Throwable $e)
-      {
-        Logger::exception($e, 'Loopr::async{}  Fiber.exception:'); //TODO: Name;
-      }
-      finally
-      {
-        UnSet(self::$fibers[$id]);
-        Stat::$fiber->remove();
-      }
-    };
-    $fiber = new Fiber($callback);
-    // Запуск файбера. Если внутри будет Fiber::suspend(), управление вернется сюда
-    $fiber->start(); 
+    self::$fibers->run($args? (fn()=>$callback(...$args)):$callback);
   }
-
+  
 //****************************************************************
 // Timers
 
@@ -184,7 +167,7 @@ class Loop
 //****************************************************************
 // Memory leak detector
 
-  static function LeakTracker_fetchFibers() { $result = self::$fibers; self::$fibers = []; return $result; }
+  static function LeakTracker_fetchFibers() { return self::$fibers->LeakTracker_fetchFibers(); }
   static function LeakTracker_fetchTimers() { return self::$timers->LeakTracker_fetchTimers(); }
 
 //****************************************************************

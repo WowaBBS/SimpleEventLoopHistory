@@ -3,7 +3,7 @@ include '../../_All.Cli.php';
 include 'Data.php';
 
 //Loop::async(function(){
-//(function(){
+(function(){
   Logger::log('[Pipeline] Test skip limit...');
 
   $promise = Pipeline::from(MockDB::get()->queryAsyncStream('SELECT * FROM TableA'))
@@ -18,6 +18,6 @@ include 'Data.php';
     ->collect();
 
   $promise->await();
-//})();
+})();
 //});
 Logger::log('-- End --');

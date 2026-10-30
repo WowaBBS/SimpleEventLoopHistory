@@ -23,7 +23,7 @@ class Loop_TaskScheduler
     catch (\Throwable $e)
     {
       // Ошибки тасок не должны ломать сам планировщик
-      trigger_error("Ошибка в асинхронной таске: " . $e->getMessage(), E_USER_WARNING);
+      Logger::exception($e, 'There is an exception in the task');
     }
   }
 

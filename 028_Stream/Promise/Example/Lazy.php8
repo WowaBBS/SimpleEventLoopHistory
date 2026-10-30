@@ -21,5 +21,3 @@ Loop::async(function() { // TODO: Bug
   Logger::log('--- Activation via then() ---');
   $promiseSleep->then(fn() => Logger::log('The lazy sleep is over!'));
 });
-
-?>

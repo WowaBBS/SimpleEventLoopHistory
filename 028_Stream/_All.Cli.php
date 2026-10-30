@@ -13,6 +13,14 @@ C_Debug_Template::$Closure_This   =false;
 C_Debug_Template::$Closure_Params =false;
 
 (function() {
+  $Dir=GetCwd();
+  ChDir(__DIR__);
+  
+  include '_All.php';
+  include 'Test/_All.php';
+  
+  ChDir($Dir);
+
   //$argv, $argc, $_GET, $_POST, $_COOKIE, $_FILES, $_ENV, $_REQUEST, $_SERVER
   $globalsKeysInitial = Array_Flip(Array_Keys($GLOBALS));
 
@@ -41,12 +49,4 @@ C_Debug_Template::$Closure_Params =false;
     else
       Logger::log('It tooks ', round($executionTime, 2), ' seconds');
   });
-  
-  $Dir=GetCwd();
-  ChDir(__DIR__);
-  
-  include '_All.php';
-  include 'Test/_All.php';
-  
-  ChDir($Dir);
 })();
