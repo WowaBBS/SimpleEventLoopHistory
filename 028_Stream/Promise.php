@@ -416,7 +416,7 @@ class Promise extends Promise_Handlers
     static $traceExc=new ReflectionProperty(\Exception ::class, 'trace');
     static $traceErr=new ReflectionProperty(\Error     ::class, 'trace');
     if($e instanceof \Exception ) $traceExc->setValue($e, $trace);
-    if($e instanceof \Error     ) $traceExc->setValue($e, $trace);
+    if($e instanceof \Error     ) $traceErr->setValue($e, $trace);
   }
 
 //****************************************************************

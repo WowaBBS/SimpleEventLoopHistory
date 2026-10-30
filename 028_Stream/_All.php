@@ -12,5 +12,6 @@ include 'Abort/_All.php';
 include 'Logger.php';
 include 'PipeLine.php';
 include 'PipeLine/_All.php';
+include 'Stream/_All.php';
 include 'Socket/_All.php';
 include 'Http/_All.php';

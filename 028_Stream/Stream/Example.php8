@@ -1,0 +1,109 @@
+<?
+include '../_All.Cli.php';
+
+class Header
+{
+  var $key   ;
+  var $vaule ;
+  
+  function __construct(string $line='')
+  {
+    $line = explode(':', $line, 2);
+    $this->key   = trim($line[0]);
+    $this->value = trim($line[1]);
+  }
+  
+  function __tostring() { return $this->key.': '.$this->value."\r\n"; }
+}
+
+//Header1
+//...
+//HeaderN
+//EmptyHeader
+class Headers
+{
+  var $first ; //First line
+  var $list  ; //Header[]
+  
+  function read(IStream $s)
+  {
+    $first = $s->readLine();
+    while (strlen($line = $s->readLine()))
+      $this->list[] = new Header($line);
+  }
+
+  function write(IStream $s)
+  {
+    $s->write(
+      $this->first ,"\r\n" ,
+      $this->list  ,"\r\n" ,
+    );
+  }
+}
+
+// NumLines
+// Line1
+// ...
+// LineN
+class Chunk
+{
+  var $List;
+}
+
+class Request
+{
+  var $Headers ;
+  var $Chunks  ;
+}
+
+class Requests
+{
+  var $List  ;
+}
+
+(function(){
+  $example = <<<HereDoc
+    Request1.FirstLine
+    Header.Key1: Header.Value1
+    Header.Key2: Header.Value2
+    Header.Key3: Header.Value3
+  
+    3
+    Chunk1.Line1
+    Chunk1.Line2
+    Chunk1.Line3
+    2
+    Chunk2.Line1
+    Chunk2.Line2
+    0
+    Request2.FirstLine
+    Header.Key1: Header.Value1
+    Header.Key2: Header.Value2
+  
+    2
+    Chunk1.Line1
+    Chunk1.Line2
+    3
+    Chunk2.Line1
+    Chunk2.Line2
+    Chunk2.Line3
+    0
+    HereDoc;
+  
+  $example=Str_Replace("\n", "\r\n", $example);
+  
+  $istream = new Stream_Mock($example);
+  $ostream = new Stream_Mock();
+  
+  $requests = new Requests();
+  $istream->read  ($requests);
+  $ostream->write ($requests);
+  
+  $result = (string)$ostream;
+  
+  if ($result !== $example)
+    Logger::error('Failed:')($result);
+  else
+    Logger::log('Ok');
+  
+})();  

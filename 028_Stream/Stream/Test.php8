@@ -1,0 +1,30 @@
+<?
+include '../_All.Cli.php';
+
+Loop::async
+(function(){
+  $example = <<<HereDoc
+    Hello world!
+    
+    
+    HereDoc;
+  
+  $stream = new Stream_Mock($example);
+  
+  $actual = $stream->read(5);
+  $desired = 'Hello';
+  
+  if ($actual !== $desired)
+    Logger::error('Failed:')(['desired'=>$desired, 'actual'=>$actual]);
+  else
+    Logger::log('Ok');
+  
+  $actual = $stream->readLine();
+  $desired = ' world!';
+  
+  if ($actual !== $desired)
+    Logger::error('Failed:')(['desired'=>$desired, 'actual'=>$actual]);
+  else
+    Logger::log('Ok');
+  
+});//();  

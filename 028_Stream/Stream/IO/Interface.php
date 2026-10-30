@@ -1,0 +1,6 @@
+<?
+interface IStream_IO
+{
+/*
+*/
+}
