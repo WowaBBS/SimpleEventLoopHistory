@@ -1,5 +1,5 @@
 <?
-include '../_All.Cli.php';
+include '../../_All.Cli.php';
 
 Logger::log('no gc 0:'); 
 
@@ -12,7 +12,7 @@ class Test {}
 
 for($level = 0; $level < $maxLevel; $level++)
   for($i = 0; $i < $count; $i++)
-    Loop_Memory::onGC(fn()=>Logger::log('  ',$level,' level ',$i+1,' call'), $level);
+    System_Memory_GC::onGC(fn()=>Logger::log('  ',$level,' level ',$i+1,' call'), $level);
 
 Logger::log('force gc 1:'); gc_collect_cycles();
 Logger::log('force gc 2:'); gc_collect_cycles();

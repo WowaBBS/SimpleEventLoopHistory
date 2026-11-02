@@ -1,15 +1,5 @@
 <?
-class Loop_MemoryLoop
-{
-  protected self $loop ;
-  
-  function id():int { return spl_object_id($this); }
-  function __construct(callable $callback) { $this->loop = $this; Loop_Memory::_onCreate($this->id(), $callback); }
-  function __destruct() { Loop_Memory::_onDestroy($this->id()); }
-  function __invoke() {} // Recurseve
-}
-
-class Loop_Memory
+class System_Memory_GC
 {
   static array $callbacks =[];
   static int   $levelCoef =2; //TODO: calc
@@ -21,7 +11,7 @@ class Loop_Memory
     $count *= self::$levelCoef;
     if ($count<=0) { $callback(); return; }
     for (;$count > 0; $count--)
-      $callback = new Loop_MemoryLoop($callback);
+      $callback = new System_Memory_Loop($callback);
   }
   
   static function _onCreate(int $id, callable $callback)
@@ -40,7 +30,7 @@ class Loop_Memory
     }
     catch(\Throwable $e)
     {
-      Logger::exception($e, 'Loop_Memory::callback: ', $callback);
+      Logger::exception($e, 'System_Memory_GC::callback: ', $callback);
     }
   }
 };
