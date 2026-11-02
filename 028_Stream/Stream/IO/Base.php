@@ -1,8 +1,20 @@
 <?
-abstract class Stream_IO_Base implements IStream_IO
+abstract class Stream_IO_Base implements IStream_IO, ILeakObject
 {
-  protected ?\WeakReference $streamRef=null;
-  protected ?IStream $stream { get=>$this->streamRef?->get(); set(?IStream $v) { $this->streamRef=$v? \WeakReference::Create($v):null; } }
+  protected IStream_Async $stream;
+  
+  public function __construct(IStream_Async $stream) { $this->stream = $stream; Loop_LeakTracker::register($this); }
+  
+  function leakDispose()
+  {
+    $this->stream?->leakDispose();
+    $this->stream = Stream_Async_Null::get();
+    $this->stream_pause();
+    
+    new ReflectionProperty(self::class, 'stack')->getRawValue($this)?->leakDispose();
+    
+    $this->stack = Stream_Stack_Null::get();
+  }
   
   static string $Stack_Class=Stream_Stack_Simple ::class;
 //static string $Stack_Class=Stream_Stack_List   ::class;
@@ -17,8 +29,6 @@ abstract class Stream_IO_Base implements IStream_IO
   //return new Stream_Stack_Tree();
   //return new Stream_Stack_Simple();
   }
-  
-  public function __construct(IStream $stream) { $this->stream = $stream; }
   
   abstract protected function stream_resume();
   abstract protected function stream_pause();
@@ -38,6 +48,4 @@ abstract class Stream_IO_Base implements IStream_IO
       $this->stream_pause();
     return $result;
   }
-  
-  
 }

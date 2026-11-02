@@ -8,7 +8,8 @@ class Pipeline_Final_Null extends Pipeline
   
   protected function setParent(Pipeline $parent):void {}
   
-  function abortPipeline($reason='abort'): void {}
+  function abortPipeline(\Throwable|string $reason=''): void {}
+  function callOnParentAborted(\Throwable|string $reason): void {}
 
   protected function isEndpoint(): bool { return true; }
   protected static function isSingleton(): bool { return true; }

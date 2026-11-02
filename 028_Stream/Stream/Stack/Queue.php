@@ -5,6 +5,12 @@ class Stream_Stack_Queue extends Stream_Stack_Base
   private array $stack   = [];
   private int   $current = 0;
 
+  function leakDispose()
+  {
+    parent::leakDispose();
+    $this->stack = [];
+  }
+  
   function has(): bool { return (bool)$this->stack; }
   function isEmpty(): bool { return count($this->stack) == 0; }
   

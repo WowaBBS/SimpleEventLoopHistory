@@ -127,9 +127,14 @@ class Loop
       ||   self::$signals   ->has();
   }
   
+  static function next(callable $task): void
+  {
+    self::$scheduler->enqueue($task);
+  }
+  
   // Удобный хелпер для запуска кода в изолированном файбере
   static function async(callable $callback, ...$args): void
-  {
+  { //TODO: Deferred?
     self::$fibers->run($args? (fn()=>$callback(...$args)):$callback);
   }
   

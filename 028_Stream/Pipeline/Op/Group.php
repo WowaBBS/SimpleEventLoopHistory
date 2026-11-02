@@ -70,5 +70,5 @@ class Pipeline_Op_Group extends Pipeline_Base
   }
 
   private function stopTimer(): void { $this->timerActive = false; }
-  protected function onAbort(): void { $this->stopTimer(); }
+  protected function onAbort(\Throwable|string $reason): void { $this->stopTimer(); parent::onAbort($reason); }
 }

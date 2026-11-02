@@ -3,6 +3,12 @@ class Stream_Stack_Tree extends Stream_Stack_Base
 {
   var ?Stream_Stack_Node $current;
   
+  function leakDispose()
+  {
+    parent::leakDispose();
+    $this->current = null;
+  }
+  
   function has(): bool { return (bool)$this->current; }
   function isEmpty(): bool { return $this->current == null; }
   

@@ -20,8 +20,8 @@ class Promise_Comb_Base
   private Deferred $deferred       ;
   
   function promise() { return $this->deferred->promise(); }
-  protected function resolve($value) { $this->deferred->resolve($value); }
-  protected function reject($reason) { $this->deferred->reject($reason); }
+  protected function resolve($value): void { $this->deferred->resolve($value); }
+  protected function reject($reason): void { $this->deferred->reject($reason); }
 
 //****************************************************************
 // Remaning

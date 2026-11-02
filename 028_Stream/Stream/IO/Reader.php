@@ -1,33 +1,54 @@
 <?
 class Stream_IO_Reader extends Stream_IO_Base
 {
-  function __construct(IStream $stream)
+  function __construct(IStream_Async $stream)
   {
     parent::__construct($stream);
     $this->buffer = new Stream_Buffer_String();
   }
 
-  function onData($stream): void
+  function leakDispose()
+  {
+    parent::leakDispose();
+    $this->buffer = Stream_Buffer_Null::Get();
+  }
+  
+  function onRecv($stream): void
   {
     $chunk = $this->stream->recv($this->chunkSize);
-    $this->buffer->add($chunk);
-    if($this->buffer->restSize() < $this->required)
-      return;
+  //Logger::debug('onRecv(', $this->chunkSize, ')=',[$chunk]);
+    if ($chunk==='') //End of stream
+    {
+      if(!$this->stream->isRecvEnd())
+      {
+        Logger::error('onRecv: no data')->backtrace();
+        return;
+      }
+      $this->onEnd();
+    }
+    else
+    {
+      $this->buffer->add($chunk);
+      if($this->buffer->restSize() < $this->required)
+        return;
+    }
     $this->execute();
   }
+  
+  function onEnd() { $this->isFinished = true; }
 
   /** Уведомить стрим, сколько байт из буфера было успешно прочитано (потреблено) */
   function consume(int $bytes): void
   {
     $this->buffer->skip($bytes);
-  //$this->stream->resumeRead();
+  //$this->stream->resumeRecv();
   }
 
 //****************************************************************
 // Stack
 
-  protected function stream_resume () { $this->stream->resumeRead (); }
-  protected function stream_pause  () { $this->stream->pauseRead  (); }
+  protected function stream_resume () { $this->stream->resumeRecv ($this->onRecv(...)); }
+  protected function stream_pause  () { $this->stream->pauseRecv  (); }
   
   /**
    * Поставить задачу на чтение в стек.
@@ -41,6 +62,11 @@ class Stream_IO_Reader extends Stream_IO_Base
     return $deferred->Promise();
   }
   
+  /**
+   * Поставить задачу на чтение в стек.
+   * @param callable $readFunc Функция чтения: fn(Pipeline_Stream_Reader $r, string $buf): bool
+   * @param callable|null $callback Колбэк завершения: fn(?\Throwable $error)
+   */
   function addTask(callable $ioFunc): void
   {
     $this->stack_add($ioFunc);
@@ -95,6 +121,10 @@ class Stream_IO_Reader extends Stream_IO_Base
 //****************************************************************
 // sync
 
+  private bool $isFinished = false;
+  private function isStreamFinished():bool { return $this->isFinished; }
+  private function isFinished():bool { return $this->isStreamFinished() && !$this->buffer->has(); }
+
   function readData(int $size):string
   {
     if ($this->buffer->restSize() >= $size)
@@ -102,32 +132,36 @@ class Stream_IO_Reader extends Stream_IO_Base
     
     $this->require($size, $size);
     
-    $readFunc = fn($reader)=>
-      $reader->readData($size);
+    $func = function($reader) use($size) {
+    //if ($this->buffer->restSize() >= $size)
+    //  return $this->buffer->read($size);
+    //Logger::error('Expected size is ', $size, ', but actual is ',$this->buffer)->throw();
+      if ($reader->buffer->restSize() >= $size)
+        return $reader->buffer->read($size);
+      Logger::error('Expected size is ', $size, ', but actual is ',$reader->buffer)->throw();
+    //return $reader->readData($size);
+    };
     
-    $promise = $this->asyncTask($readFunc);
+    $promise = $this->asyncTask($func);
     
     return $promise->await();
   }
 
-  
-  static function untilStr($end, $include=false)
+  static function untilStr($end)
   {
-    if(!$include) return fn($data, $offset)=>strpos($data, $end, $offset);
-    return fn($data, $offset)=>($res=strpos($data, $end, $offset))!==false? $res+strlen($end):false;
+    return fn($data, $offset)=>($res = strpos($data, $end, $offset)) !== false? [$res, $end]:false;
   }
   
-  static function untilReg($pattern, $include=false)
+  static function untilReg($pattern)
   {
-    if(!$include) return fn($data, $offset)=>preg_match($pattern, $data, $matches, PREG_OFFSET_CAPTURE, $offset)? $matches[0][1]:false;
-    return fn($data, $offset)=>preg_match($pattern, $data, $matches, PREG_OFFSET_CAPTURE, $offset)? $matches[0][1]+strlen($matches[0][0]):false;
+    return fn($data, $offset)=>preg_match($pattern, $data, $matches, PREG_OFFSET_CAPTURE, $offset)? [$matches[0][1], $matches[0][0]]:false;
   }
   
-  function readUntil(callable $until, ?int $chunkSize=null, bool $orEnd=true)
+  function readUntil(callable $until, ?bool $include=null, ?int $chunkSize=null, bool $orEnd=true)
   {
     $chunkSize ??= $this->chunkSize;
-    $readFunc=function($reader) use($until, $chunkSize, $orEnd){
-      $result = $reader->buffer->until($until);
+    $func = function($reader) use($until, $include, $chunkSize, $orEnd){
+      $result = $reader->buffer->until($until, $include);
       if ($result !== false)
         return $result;
       
@@ -143,18 +177,18 @@ class Stream_IO_Reader extends Stream_IO_Base
       throw new Stream_Exception_End();
     };
 
-    $result = $readFunc($this);
+    $result = $func($this);
     if ($result !== false)
       return $result;
     
-    $promise = $this->asyncTask($readFunc);
+    $promise = $this->asyncTask($func);
     
     return $promise->await();
   }
   
-  function readUntilStr(string $str  ,bool $include=false, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilStr($str, $include), $chunkSize, $orEnd); }
-  function readUntilReg(string $reg  ,bool $include=false, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilReg($reg, $include), $chunkSize, $orEnd); }
-  function readLine(string $end="\n" ,bool $include=false, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntilStr(            $end, $include , $chunkSize, $orEnd); }
+  function readUntilStr(string $str  ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilStr($str), $include, $chunkSize, $orEnd); }
+  function readUntilReg(string $reg  ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilReg($reg), $include, $chunkSize, $orEnd); }
+  function readLine(string $end="\n" ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntilStr(            $end , $include, $chunkSize, $orEnd); }
   
   function readList($args):array|string
   {

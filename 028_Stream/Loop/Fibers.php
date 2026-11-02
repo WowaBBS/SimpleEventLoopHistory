@@ -6,8 +6,21 @@ class Loop_Fibers
 
   function has(): bool { return !$this->active; }
   
+  function kill()
+  {
+    if (!$this->active) return;
+    $exception = new Loop_Kill();
+    Logger::error('Lost fibers:');
+    while ($fiber = array_first($this->active))
+    {
+      Logger::log('  ', $fiber);
+      $fiber->throw($exception);
+    }
+  }
+  
   function dispose()
   {
+    $this->kill();
     while ($fiber = array_last($this->free))
       $fiber->resume();
   }
@@ -43,18 +56,24 @@ class Loop_Fibers
       
       Stat::$fiber->add();
       $this->active[$id] = $fiber;
+      $finished = false;
       try
       {
         $task();
+        $finished = true;
       }
       catch (\Throwable $e)
       {
         Logger::exception($e, 'Loopr::async{}  Fiber.exception:'); //TODO: Name;
+        $finished = true;
       }
       finally
       {
+        if (!$finished) Logger::error('Fiber removed without finishing');
+        
         // Free memory
         try{ $task = null; } catch(\Throwable $e) { Logger::exception($e, 'Fiber: free task'); }
+        
         unset($this->active[$id]);
         Stat::$fiber->remove();
       }

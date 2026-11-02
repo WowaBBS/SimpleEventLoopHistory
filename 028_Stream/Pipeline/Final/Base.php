@@ -8,7 +8,7 @@ abstract class Pipeline_Final_Base extends Pipeline
     $this->deferred = new Deferred();
     
     $weak=\WeakReference::create($this); // Optimize memory leak
-    $this->deferred->promise()->onReject(fn()=>$weak->get()?->abortPipeline(), $this);
+    $this->deferred->promise()->onReject(fn($reason)=>$weak->get()?->abortPipeline($reason), $this);
   //$this->deferred->promise()->onReject($this->abortPipeline(...), $this);
 
     parent::__construct($parent);
@@ -45,4 +45,12 @@ abstract class Pipeline_Final_Base extends Pipeline
 
   protected function registerChild(Pipeline $child): void {}
   protected function unregisterChild(Pipeline $child, $reason): void {}
+
+  function onAbort(\Throwable|string $reason): void
+  {
+    parent::onAbort($reason);
+    $this->deferred->reject($reason);
+  }
+
+  function callOnParentAborted(\Throwable|string $reason): void {}
 }

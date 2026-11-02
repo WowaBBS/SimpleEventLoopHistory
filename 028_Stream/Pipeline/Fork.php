@@ -34,6 +34,14 @@ class Pipeline_Fork extends Pipeline
     parent::childLock($lock);
   }
     
+  protected function callOnParentAborted(\Throwable|string $reason): void
+  {
+    $children = $this->children;
+    $this->children = [];
+    foreach ($children as $child)
+      $child->onParentAborted($reason);
+  }
+  
   /** Раздача элемента всем детям */
   protected function onProcess(Pipeline_Event $type, mixed $payload): void
   {

@@ -1,32 +1,34 @@
 <?
 class Stream_IO_Writer extends Stream_IO_Base
 {
-  private bool $isWriting = false;
+//****************************************************************
+// Stack
 
+  protected function stream_resume () { $this->stream->resumeSend ($this->onSend(...)); }
+  protected function stream_pause  () { $this->stream->pauseSend  (); }
+  
   /**
    * Поставить задачу на запись в стек.
    * @param callable $writeFunc Функция записи: fn(Pipeline_Stream_Writer $w): bool
    * @param callable|null $callback Колбэк завершения: fn(?\Throwable $error)
    */
-  public function write(callable $writeFunc, ?callable $callback = null): void
+  function asyncTask(callable $ioFunc):Promise
   {
-    if(!$this->stack->add($readFunc, $callback)) return;
-
-    if (!$this->isWriting)
-      $this->execute();
+    $deferred = new Deferred();
+    $this->stack_add($ioFunc, $deferred);
+    return $deferred->Promise();
   }
-
+  
   /**
-   * Попытка записи сырых байт в транспорт.
-   * Возвращает false, если буфер ОС переполнен.
+   * Поставить задачу на запись в стек.
+   * @param callable $writeFunc Функция записи: fn(Pipeline_Stream_Writer $w): bool
+   * @param callable|null $callback Колбэк завершения: fn(?\Throwable $error)
    */
-  public function sendRaw(string $data): bool
+  function addTask(callable $ioFunc): void
   {
-    // Наш SocketConnection::write() внутри себя использует Fiber::suspend(),
-    // но здесь, согласно вашей спецификации, мы можем обрабатывать статус готовности асинхронно.
-    return $this->stream->send($data);
-  }
-
+    $this->stack_add($ioFunc);
+  }  
+  
   public function raiseError(\Throwable $error): void
   {
     $current = array_pop($this->stack);
@@ -38,88 +40,57 @@ class Stream_IO_Writer extends Stream_IO_Base
 
   private function execute(): void
   {
-    if (empty($this->stack))
-    {
-      $this->isWriting = false;
-      return;
-    }
-
-    $this->isWriting = true;
-    $idx = array_key_last($this->stack);
-    $current = &$this->stack[$idx];
-
-    // Если вложенные функции записи ещё выполняются - ждем их
-    if (isset($current['has_nested']) && !$current['nested_done']) return;
-
-    // Вызываем функцию записи
-    $isFinished = ($current['func'])($this);
-
-    // Проверяем, наплодила ли функция вложенные подзадачи записи
-    $newIdx = array_key_last($this->stack);
-    if ($newIdx > $idx)
-    {
-      $current['has_nested'] = true;
-      $current['nested_done'] = false;
-
-      if (!$isFinished)
-      {
-        // Функция вернула false и передала вложенную функцию:
-        // Она вызовется ЕЩЕ РАЗ, когда вложенная функция завершится (по спецификации)
-        $current['recall_after_nested'] = true;
-      }
-
-      $this->execute();
-      return;
-    }
-
-    if ($isFinished) {
-      $doneJob = array_pop($this->stack);
-
-      if ($doneJob['callback'])
-        ($doneJob['callback'])(null);
-
-      // Уведомляем родительскую функцию записи на стеке
-      if (!empty($this->stack))
-      {
-        $parentIdx = array_key_last($this->stack);
-        $parent = &$this->stack[$parentIdx];
-        if (isset($parent['has_nested']))
-        {
-          $parent['nested_done'] = true;
-
-          // Если родитель возвращал false, вызываем его ЕЩЕ РАЗ
-          if (isset($parent['recall_after_nested']))
-          {
-            unset($parent['recall_after_nested']);
-            $parent['has_nested'] = false; // Сбрасываем триггер ожидания
-          }
-        }
-      }
-
-      $this->execute();
-    }
-    else
-    {
-      // Если функция вернула false и не передавала вложенных задач -
-      // значит сокет Беркли не готов к записи. Подписываемся на Writable событие в Loop
-      Loop::addWriteStream($this->stream->getResource(), function() {
-        Loop::removeWriteStream($this->transport->getResource());
-        $this->execute(); // Перезапускаем шаг записи, как только сеть освободится
-      });
-    }
+    $this->stack_call($this);
   }
-
-//****************************************************************
-// Stack
-
-  protected function stream_resume () { $this->stream->resumeWrite (); }
-  protected function stream_pause  () { $this->stream->pauseWrite  (); }
   
 //****************************************************************
 // Writer any data
 
-  function writeData(string $data): int
+  /**
+   * Попытка записи сырых байт в транспорт.
+   * Возвращает false, если буфер ОС переполнен.
+   */
+  function writeData(string $data): int // TODO:exception
   {
+    $result = 0;
+    $len = $this->stream->send($data);
+    if ($len === strlen($data)) return $len;
+    if ($len) $data = substr($data, $len);
+    $result += $len;
+    
+    $func = function($writer) use(&$data, &$result){
+      $len = $this->stream->send($data);
+      $result += $len;
+      if ($len === strlen($data)) return $result;
+      if ($len) $data = substr($data, $len);
+    //$this->asyncTask(Closure::getCurrent()); // Will recall current
+    };
+
+    $promise = $this->asyncTask($func);
+    return $promise->await();
+  //$promise->await();
+  //return $result;
+  }
+  
+  function writeEnd()
+  {
+    $this->stream->sendEnd();
+  }
+  
+  function onSend($stream)
+  {
+  //Logger::debug('onSend()');
+    $this->execute();
+  /*
+    $len = $this->stream->send($data);
+    if ($len === strlen($data))
+    {
+      $this->stream->pauseSend();
+      return;
+    }
+    
+    $this->toSend = $len? substr($data, $len):$data;
+  */
   }
   
   function writeList($args): int
@@ -152,6 +123,7 @@ class Stream_IO_Writer extends Stream_IO_Base
       default:
         throw new \LogicException('Unallowed write type '. gettype($arg));
       }
+    return $res;
   }
   
 //****************************************************************

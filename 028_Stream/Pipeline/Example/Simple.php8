@@ -1,0 +1,21 @@
+<?
+include '../../_All.Cli.php';
+include 'Data.php';
+
+Promise::$delayedEvents = !true;
+
+//Loop::async(function(){
+//(function(){
+  foreach (MockDB::get()->queryAsyncStream('SELECT * FROM TableA') as $row)
+    Logger::log('Item: ', $row['name']);
+/*
+  Pipeline::from(MockDB::get()->queryAsyncStream('SELECT * FROM TableA'))
+    ->map(function($row) {
+      Logger::log('Item: ', $row['name']);
+      return $row;
+    })
+    ->finish();
+*/
+//})();
+//});
+Logger::log('-- End --');

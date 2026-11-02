@@ -21,7 +21,7 @@ class Promise extends Promise_Handlers
   
   function __construct(mixed $arg = null)
   {
-    Loop_LeakTracker::register($this);
+    
     Stat::$promise->add();
     if ($arg === null) return;
     
@@ -69,7 +69,13 @@ class Promise extends Promise_Handlers
     if ($this->isNotSettled())
       Logger::error('Destroing not settled promise:')->dump($this);
   }
-
+  
+  function leakDispose()
+  {
+    parent::leakDispose();
+    $this->value = null;
+  }
+  
   /**
    * Синхронное получение значения БЕЗ вызова await().
    * Выбрасывает исключение, если промис еще не выполнен или выполнен с ошибкой.
@@ -272,8 +278,11 @@ class Promise extends Promise_Handlers
         $value = $callback($value);
         $isOk  = true;
       }
-      catch (Throwable $e)
+      catch (\Throwable $e)
       {
+        if ($e instanceof \Error)
+          Logger::exception($e, 'Promie have an error exception:');
+        // TODO: Check exception was catched
         $value = $e;
         $isOk  = false;
       }

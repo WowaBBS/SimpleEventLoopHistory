@@ -1,0 +1,7 @@
+<?
+include '../../_All.Cli.php';
+include 'Test.php';
+
+$test = new Stream_Buffer_Test();
+$test->start();
+unset($test);

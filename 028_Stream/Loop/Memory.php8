@@ -1,0 +1,29 @@
+<?
+include '../_All.Cli.php';
+
+Logger::log('no gc 0:'); 
+
+$maxLevel = 10;
+$count = 3;
+
+class Test {}
+
+//gc_enable();
+
+for($level = 0; $level < $maxLevel; $level++)
+  for($i = 0; $i < $count; $i++)
+    Loop_Memory::onGC(fn()=>Logger::log('  ',$level,' level ',$i+1,' call'), $level);
+
+Logger::log('force gc 1:'); gc_collect_cycles();
+Logger::log('force gc 2:'); gc_collect_cycles();
+Logger::log('force gc 3:'); gc_collect_cycles();
+Logger::log('alloc 4:'); 
+
+$List=[];
+for($i=0; $i< 1_000_000; $i++)
+  $List[] = new Test();
+unset($List);
+
+Logger::log('end:'); 
+
+// TODO: There are't logging to file but console

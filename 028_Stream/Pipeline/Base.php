@@ -46,13 +46,19 @@ abstract class Pipeline_Base extends Pipeline
     $this->onNoChild($reason);
   }
     
+  protected function callOnParentAborted(\Throwable|string $reason): void
+  {
+    $this->child?->onParentAborted($reason);
+    $this->child = null;
+  }
+  
   protected final function onProcess(Pipeline_Event $type, mixed $payload): void
   {
   //Logger::debug('onProcess: ',$type, ': ', $payload);
     $child = $this->child;
 
     // Если ребенок умер или отменился, прекращаем проталкивание данных
-    if (!$child) { $this->abortPipeline(); return; }
+    if (!$child) { $this->abortPipeline('NoChild'); return; } //TODO: overhead, excessive checks 
 
     // Если пришла ошибка, а текущий оператор - не Catch, транзитом шлем ошибку ребенку
     if ($type->isError() && !($this instanceof Pipeline_Op_Catch)) //TODO: Catch workaround

@@ -20,7 +20,7 @@ class Loop_LeakTracker
   }
   
   static function checkLostFibers()
-  {
+  { //TODO: Remove
     $fibers = Loop::LeakTracker_fetchFibers();
     if (!$fibers) return;
     Logger::error('Lost fibers:');
@@ -44,21 +44,49 @@ class Loop_LeakTracker
     if (!count(self::$lostObjects)) return;
     Logger::error('Lost objects:');
     $Idx=0;
-    foreach (self::$lostObjects as $object=>$backtrace)
-      Logger::log('  ', $Idx++, '=>')->dump($object)->setstack($backtrace);
+    while (count(self::$lostObjects))
+      foreach (self::$lostObjects as $object=>$trace)
+        try
+        {
+          self::unregister($object);
+          $log=Logger::log('  ', $Idx++, '=>')->dump($object);
+          if (is_array($trace))
+            $log->setstack($trace);
+          $log->done();
+          $object->leakDispose();
+        }
+        catch(\Throwable $e)
+        {
+          Logger::exception($e, 'Check lost object exception:');
+        }
+      
     Logger::log();
   }
   
   // Used in Pipeline and Promise
-  static function register($object)
+  static function register(ILeakObject $object)
   {
     if (!self::$catchLostObjects) return;
     
-    self::$lostObjects[$object] = debug_backtrace(DEBUG_BACKTRACE_IGNORE_ARGS);
+    self::$lostObjects[$object] = self::makeTrace()?? true;
   }
   
-  static function unregister($object)
+  static function unregister(ILeakObject $object)
   {
     unset(self::$lostObjects[$object]);
   }
+//****************************************************************
+// Debug
+
+  static bool $saveTrace    =true;
+  static int  $traceOptions =DEBUG_BACKTRACE_IGNORE_ARGS;
+  static int  $traceLimit   =-1;
+  
+  static function makeTrace(): ?array
+  {
+    if (!self::$saveTrace) return null;
+    return debug_backtrace(self::$traceOptions, self::$traceLimit);
+  }
+  
+//****************************************************************
 }

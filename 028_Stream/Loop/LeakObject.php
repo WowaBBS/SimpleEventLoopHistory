@@ -1,0 +1,5 @@
+<?
+interface ILeakObject
+{
+  function leakDispose();
+}

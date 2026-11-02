@@ -2,10 +2,13 @@
 /**
  * Handler functions
  */
-class Promise_Handlers
+class Promise_Handlers implements ILeakObject
 {
   private array $handlers = [];
   static bool $delayedEvents = true;
+  
+  function __construct() { Loop_LeakTracker::register($this); }
+  function leakDispose() { $this->handlers = []; }
 
   static function keyHandler(object|int|string $key): int|string { return is_object($key)? spl_object_id($key):$key; }
   

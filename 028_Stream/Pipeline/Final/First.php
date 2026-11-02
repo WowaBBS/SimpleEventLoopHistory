@@ -7,7 +7,7 @@ class Pipeline_Final_First extends Pipeline_Final_Base
     if ($type->isData())
     {
       $this->deferred->resolve($payload);
-      $this->abortPipeline();
+      $this->abortPipeline('Finished');
       return;
     }
     

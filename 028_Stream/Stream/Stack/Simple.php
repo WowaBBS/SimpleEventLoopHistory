@@ -4,6 +4,13 @@ class Stream_Stack_Simple extends Stream_Stack_Base
   private           $handler  =null;
   private ?Deferred $deferred =null;
 
+  function leakDispose()
+  {
+    parent::leakDispose();
+    $this->handler  = null;
+    $this->deferred = null;
+  }
+  
   function has(): bool { return (bool)$this->handler; }
   function isEmpty(): bool { return !$this->handler; }
   

@@ -2,14 +2,14 @@
 include '../../_All.Cli.php';
 include 'Data.php';
 
-$task = 'MyTask';
-
 Loop::setTimeLimit(2, 1);
 
-//Loop::async(function() use ($task) {
-(function() use ($task) {
+//Loop::async(function() {
+(function() {
   try
   {
+    $task = 'MyTask';
+    
     Logger::log('[Pipeline] Launching heavy data pipeline...');
 
     $promise = Pipeline::from(MockDB::get()->queryAsyncStream('SELECT * FROM TableA'))

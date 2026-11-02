@@ -3,28 +3,50 @@ include '../_All.Cli.php';
 
 Loop::async
 (function(){
-  $example = <<<HereDoc
-    Hello world!
+  $stream = new Stream_Async_Mock()->syncStream(); //$example);
+
+  Loop::async(function() use($stream){
+    $example = <<<HereDoc
+      Hello world!
+      next
+      next2
+      next3
+      
+      
+      HereDoc;
+    $stream->write($example);
+  //TODO: $stream->write('DelayedLine');
+    $stream->writeEnd();
+  });
+/*
+  $promise = new Promise();
+  $promise->then(fn($data)=>$stream->write($data))
+    ->then(fn()=>$stream->writeEnd());
+  $promise->resolve($example);
+*/  
+  $tests=[
+    [fn()=>$stream->read    (5            ), 'Hello'   ], //0
+    [fn()=>$stream->readLine(             ), ' world!' ], //1
+    [fn()=>$stream->readLine(include:true ), "next\n"  ], //2
+    [fn()=>$stream->readLine(include:false), 'next2'   ], //3
+    [fn()=>$stream->readLine(include:false), ''        ], //4
+    [fn()=>$stream->readLine(             ), ''        ], //5
+    [fn()=>$stream->readLine(             ), 'next3'   ], //6
+    [fn()=>$stream->readLine(             ), ''        ], //7
+  //[fn()=>$stream->readLine(             ), 'DelayedLine' ], //8
+  ];
+  
+  foreach($tests as $k=>[$func, $desired])
+  {
+    $actual = $func();
     
-    
-    HereDoc;
-  
-  $stream = new Stream_Mock($example);
-  
-  $actual = $stream->read(5);
-  $desired = 'Hello';
-  
-  if ($actual !== $desired)
-    Logger::error('Failed:')(['desired'=>$desired, 'actual'=>$actual]);
-  else
-    Logger::log('Ok');
-  
-  $actual = $stream->readLine();
-  $desired = ' world!';
-  
-  if ($actual !== $desired)
-    Logger::error('Failed:')(['desired'=>$desired, 'actual'=>$actual]);
-  else
-    Logger::log('Ok');
+    if ($actual !== $desired)
+    {
+      Logger::error('Failed: ',$k)(['desired'=>$desired])(['actual'=>$actual]);
+      break;
+    }
+    else
+      Logger::log($k, ' Ok');
+  }
   
 });//();  

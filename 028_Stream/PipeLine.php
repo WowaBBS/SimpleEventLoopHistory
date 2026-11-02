@@ -21,6 +21,12 @@ abstract class Pipeline
     $this->parent?->unregisterChild($this, 'destructor');
     Stat::$pipeline->remove();
   }
+
+  function leakDispose()
+  {
+  //parent::leakDispose();
+    $this->abortPipeline('leakDispose');
+  }
   
   function isValid() { return !$this->isCancelled && !$this->isEnded ; }
   
@@ -213,22 +219,33 @@ abstract class Pipeline
 // Aborting
 
   /** Метод инициации отмены снизу вверх */
-  function abortPipeline($reason='abort'): void
+  function abort(\Throwable|string $reason='abort'): void { $this->abortPipeline($reason); }
+  function abortPipeline(\Throwable|string $reason='abort'): void
   {
-    if (!$this->isValid()) { $this->logicError('can\'t abort invald pipeline'); return; }
+    $this->debug('Abort ', $reason, ['cancelled'=>$this->isCancelled, 'ended'=>$this->isEnded]);
+    if (!$this->isValid()) { $this->logicError('can\'t abort invalid pipeline'); return; }
     
     $this->isCancelled = true;
-    $this->onAbort();
+    $this->onAbort($reason);
     $this->setProtected(false);
+  //TODO: $this->callOnParentAborted($reason);
 
     // Если есть родитель, уведомляем его, что мы отписались
     $this->parent?->unregisterChild($this, $reason);
   }
   
+  protected abstract function callOnParentAborted(\Throwable|string $reason): void;
+  
+  protected function onParentAborted(\Throwable|string $reason): void
+  {
+    $this->parent = null;
+    $this->abortPipeline($reason);
+  }
+  
   /** Хук для кастомной очистки ресурсов (например, таймеров) */
-  protected function onAbort(): void {}
+  protected function onAbort(\Throwable|string $reason): void {}
 
-  protected function onNoChild($reason)
+  protected function onNoChild(\Throwable|string $reason): void
   {
     // Если звено защищено, мы блокируем отмену вверх!
     if (!$this->isValid()  ) return;

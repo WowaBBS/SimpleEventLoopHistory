@@ -18,6 +18,7 @@ class Pipeline_Start_Generator extends Pipeline_Base
     $this->isStarted = true;
 
     Loop::async($this->runLoopIteration(...));
+  //$this->runLoopIteration(...);
   }
 
   private function runLoopIteration(): void
@@ -34,8 +35,8 @@ class Pipeline_Start_Generator extends Pipeline_Base
       //Logger::debug('Iterate: ', $item);
         $this->emit($item);
         
-      //
-      sleepAsync(0)->await();
+      //TODO: Optional
+        sleepAsync(0)->await();
       }
       
       if (!$this->isValid()) return;
@@ -45,7 +46,7 @@ class Pipeline_Start_Generator extends Pipeline_Base
     catch (\Throwable $e)
     {
       Logger::Exception($e, 'Pipeline.runLootIteration');
-      $this->abortPipeline();
+      $this->abortPipeline('runLootIteration');
     }
   }
   
