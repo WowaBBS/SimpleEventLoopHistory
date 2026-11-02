@@ -92,8 +92,8 @@ class Requests
   
   $example=Str_Replace("\n", "\r\n", $example);
   
-  $istream = new Stream_Mock($example);
-  $ostream = new Stream_Mock();
+  $istream = new Stream_Async_Mock($example)->syncStream();
+  $ostream = new Stream_Async_Mock()->syncStream();
   
   $requests = new Requests();
   $istream->read  ($requests);

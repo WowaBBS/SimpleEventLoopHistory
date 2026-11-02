@@ -1,6 +1,7 @@
 <?php
-
 declare(strict_types=1);
+
+use \WLib\Debug\Format as Debug;
 
 //use PHPUnit\Framework\TestCase;
 
@@ -30,10 +31,11 @@ class Stream_Buffer_Test //extends TestCase
   }
 
   public function test_add_appends_data_to_end(): void
-  {
+  { //TODO: Too slow in List
     $this->buffer->add('foo');
     $this->buffer->add('bar');
 
+    $this->assertEquals(6, $this->buffer->restSize());
     // читаем всё, чтобы убедиться, что порядок правильный
     $this->assertEquals('foobar', $this->buffer->readAll());
   }
@@ -105,7 +107,10 @@ class Stream_Buffer_Test //extends TestCase
     $this->buffer->unread('abc'); // добавляем в начало
 
     // теперь должно быть: abc + yz
-    $this->assertEquals('abcyz', $this->buffer->readAll());
+    $desired = $this->buffer::hasFastUnreadNew()
+      ?'abxyz'
+      :'abcyz';
+    $this->assertEquals($desired, $this->buffer->readAll());
   }
 
   public function test_chained_operations(): void
@@ -113,9 +118,11 @@ class Stream_Buffer_Test //extends TestCase
     $this->buffer->add('1234567890');
 
     $this->buffer->skip(2);         // пропускаем '12'
-    $back=false? 'AB':'12';
+    $back = $this->buffer::hasFastUnreadExist()
+      ?'12'
+      :'AB';
     $this->buffer->unread($back);       // добавляем 'AB' в начало
-    $chunk = $this->buffer->peek(3); // peek 'AB3'
+    $chunk    = $this->buffer->peek(3); // peek 'AB3'
     $consumed = $this->buffer->read(4); // читаем 'AB34'
 
     $this->assertEquals($back.'3', $chunk);
@@ -123,21 +130,90 @@ class Stream_Buffer_Test //extends TestCase
     $this->assertEquals('567890', $this->buffer->readAll());
   }
   
+  public function test_big_data(): void
+  {
+    $bigSize  = 1024*1024; //  1MB
+    $count    =        16; // 16MB
+    $bigChunk = str_repeat(' ', $bigSize);
+    $buffer   = $this->buffer;
+    $readed   = 0;
+    
+    $buffer->add($bigChunk);
+    
+    $this->assertEquals($bigSize, $buffer->restSize());
+    
+    for ($i = 1; $i < $count; $i++)
+    {
+      $buffer->add($bigChunk);
+      $readed += strlen($buffer->read($bigSize));
+    }
+    
+    $this->assertEquals($bigSize, $buffer->restSize());
+    
+    $readed += strlen($buffer->read($bigSize));
+    
+    $this->assertEquals(0, $buffer->restSize());
+    $this->assertEquals($bigSize*$count, $readed);
+  }
+
+  public function test_a_lot_of_small_packets(): void
+  {
+    $size     =     256*1024; //  1MB
+    $capacity =     128*1024; // 128KB
+    $packet   = ' ';
+    $buffer   = $this->buffer;
+    $readed   = 0;
+    
+    for ($i = 0; $i < $capacity; $i++)
+      $buffer->add($packet);
+
+    $this->assertEquals($capacity, $buffer->restSize());
+    
+    for (; $i < $size; $i++)
+    {
+      $buffer->add($packet);
+      $this->assertEquals($capacity+1, $buffer->restSize());
+      $readed += strlen($buffer->read(1));
+      $this->assertEquals($capacity, $buffer->restSize());
+    }
+    
+    $this->assertEquals($capacity, $buffer->restSize());
+    
+    for ($i = 0; $i < $capacity; $i++)
+      $readed += strlen($buffer->read(1));
+    
+    $this->assertEquals(0, $buffer->restSize());
+    $this->assertEquals($size, $readed);
+  }
+  
   function start()
   {
     $buffers=[
-      Stream_Buffer_String ::class,
-      Stream_Buffer_Offset ::class, //Для Stream_Buffer_Offset: проверь, что смещение корректно работает при множественных skip/read, особенно если буфер хранит данные как срез/view, а не копирует их.
-    //Stream_Buffer_List   ::class, //Для Stream_Buffer_List / Stream_Buffer_Doubly: можно добавить тесты на производительность (если важно) или на корректность работы при очень большом числе мелких чанков (например, 10 000 вызовов add по 1 байту, затем readAll).
-    //Stream_Buffer_Doubly ::class,
-    //Stream_Buffer_Cyclic ::class, //Для Stream_Buffer_Cyclic: тесты на <переполнение> и повторное использование места, когда данные пишутся поверх старых. Проверь, что read возвращает именно те данные, которые должны быть по логике циклического буфера, а не <всё подряд>.
+    /* */
+      'String' =>Stream_Buffer_String ::class,
+      'Offset' =>Stream_Buffer_Offset ::class, //Для Stream_Buffer_Offset: проверь, что смещение корректно работает при множественных skip/read, особенно если буфер хранит данные как срез/view, а не копирует их.
+    /* */
+      'List'   =>Stream_Buffer_List   ::class, //Для Stream_Buffer_List / Stream_Buffer_Doubly: можно добавить тесты на производительность (если важно) или на корректность работы при очень большом числе мелких чанков (например, 10 000 вызовов add по 1 байту, затем readAll).
+      'Doubly' =>Stream_Buffer_Doubly ::class,
+    //'Ring'   =>Stream_Buffer_Ring   ::class, //Для Stream_Buffer_Ring: тесты на <переполнение> и повторное использование места, когда данные пишутся поверх старых. Проверь, что read возвращает именно те данные, которые должны быть по логике циклического буфера, а не <всё подряд>.
     ];
-    foreach ($buffers as $bufferClass)
+    foreach ($buffers as $bufferName=>$bufferClass)
     {
+      Logger::log('Buffer ', $bufferName, ':');
       foreach ($this->getAll() as $test)
       {
+        $refl = new \ReflectionFunction($test);
+        $name = ucfirst(strtr(substr($refl->name, 5), '_', ' '));
+        Logger::progress('  ', $name); 
         $this->buffer = new $bufferClass();
+        $start = hrtime(true);
         $test();
+        $end = hrtime(true);
+        $time = ($end-$start)*1e-9;
+        if ($time > 0.00001)
+          Logger::log('  ', $name, ' ', Debug::Time($time));
+        else
+          Logger::log('  ', $name);
       }
     }
   }
@@ -157,17 +233,19 @@ class Stream_Buffer_Test //extends TestCase
       $this->test_unread_adds_data_to_front                        (...),
       $this->test_unread_after_partial_read                        (...),
       $this->test_chained_operations                               (...),
+      $this->test_big_data                                         (...),
+      $this->test_a_lot_of_small_packets                           (...),
     ];
   }
   
   function assertFalse ($false ) { $this->assertEquals(false ,$false ); }
   function assertTrue  ($true  ) { $this->assertEquals(true  ,$true  ); }
-  function assertEquals($desired ,$actual)
+  function assertEquals($desired, $actual)
   {
     if ($actual !== $desired)
     {
       Logger::error('Failed:')(['desired'=>$desired])(['actual'=>$actual]);
-      throw LogicException();
+      throw new \LogicException();
     }
   //else
   //  Logger::log($k, ' Ok');

@@ -21,7 +21,8 @@ class Logger
   static protected function push($level, ...$args) { return self::get()->Log($level, ...$args); }
   
   static function exception(\Throwable $e, ...$args) { return self::error(...$args)->Exception($e); }
-  static function error (...$args) { return self::push('Error' , ...$args); }
-  static function debug (...$args) { return self::push('Debug' , ...$args); }
-  static function log   (...$args) { return self::push('Log'   , ...$args); }
+  static function error    (...$args) { return self::push('Error'    , ...$args); }
+  static function debug    (...$args) { return self::push('Debug'    , ...$args); }
+  static function log      (...$args) { return self::push('Log'      , ...$args); }
+  static function progress (...$args) { return self::push('Progress' , ...$args); }
 }

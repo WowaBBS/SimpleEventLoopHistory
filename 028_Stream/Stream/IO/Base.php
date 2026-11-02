@@ -25,9 +25,6 @@ abstract class Stream_IO_Base implements IStream_IO, IDebug_Leak_Object
   static function createDefaulStack()
   {
     return new (self::$Stack_Class)();
-  //return new Stream_Stack_List();
-  //return new Stream_Stack_Tree();
-  //return new Stream_Stack_Simple();
   }
   
   abstract protected function stream_resume();
@@ -48,4 +45,45 @@ abstract class Stream_IO_Base implements IStream_IO, IDebug_Leak_Object
       $this->stream_pause();
     return $result;
   }
+//****************************************************************
+// Task
+
+  /**
+   * Поставить задачу на чтение/запись в стек.
+   * @param callable $readFunc Функция чтения: fn(Pipeline_Stream_Reader $r, string $buf): bool
+   * @param callable|null $callback Колбэк завершения: fn(?\Throwable $error)
+   */
+  function asyncTask(callable $ioFunc):Promise
+  {
+    $deferred = new Deferred();
+    $this->stack_add($ioFunc, $deferred);
+    return $deferred->Promise();
+  }
+  
+  /**
+   * Поставить задачу на чтение/запись в стек.
+   * @param callable $readFunc Функция чтения: fn(Pipeline_Stream_Reader $r, string $buf): bool
+   * @param callable|null $callback Колбэк завершения: fn(?\Throwable $error)
+   */
+  function addTask(callable $ioFunc): void
+  {
+    $this->stack_add($ioFunc);
+  }
+
+  /** Выбросить ошибку формата или сетевого сбоя прямо во время чтения/записи */
+  function raiseError(\Throwable $error): void
+  {
+    $current = array_pop($this->stack);
+    if ($current && $current['callback'])
+      ($current['callback'])($error);
+    
+    $this->execute(); // Продолжаем крутить стек для остальных задач, если они есть
+  }
+
+  protected function execute(): void
+  {
+    $this->stack_call($this);
+  }
+  
+//****************************************************************
 }

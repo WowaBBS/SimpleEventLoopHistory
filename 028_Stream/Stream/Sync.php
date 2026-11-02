@@ -12,10 +12,6 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
     new ReflectionProperty(self::class, 'reader')->getRawValue($this)?->leakDispose();
     new ReflectionProperty(self::class, 'writer')->getRawValue($this)?->leakDispose();
     
-  //$map = (array)$this;
-  //$map['*reader']?->leakDispose();
-  //$map['*writer']?->leakDispose();
-    
     $this->reader = null;
     $this->writer = null;
     $this->stream = Stream_Async_Null::get();
@@ -39,8 +35,6 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
   function readUntilReg (string $reg      ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->reader->readUntilReg ($reg   ,$include, $chunkSize, $orEnd); }
   function readLine     (string $end="\n" ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->reader->readLine     ($end   ,$include, $chunkSize, $orEnd); }
 
-//function read($len) {}
-//function write($len) {}
 //****************************************************************
 // Life time
   function close() {}

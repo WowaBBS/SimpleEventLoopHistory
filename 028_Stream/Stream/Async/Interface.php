@@ -5,9 +5,9 @@ interface IStream_Async
 // Read
 
   // Проверка, есть ли данные для чтения
-  function hasDataToRecv(): bool;
+//function hasDataToRecv(): bool;
   // Сколько осталось? если у внутренний буфера
-  function restRecvSize(): int;
+//function restRecvSize(): int;
   // Чтение данных из потока
   function recv(int $maxSize): ?string;
   // Проверка, закрыт ли поток для чтения
@@ -20,32 +20,20 @@ interface IStream_Async
 //****************************************************************
 // Send
 
-  function canSendSize(): int;
-  function canSend(): bool;
+//function canSendSize(): int;
+  // Проверка, свободен ли поток для записи
+//function canSend(): bool;
+  // Запись данных в поток
   function send(string $data): false|int;
 
   // Закрыть поток для записи
   function sendEnd(): void;
+  // Подписаться на событие при успешной записи
   function resumeSend(callable $callback): void;
+  // Отписаться от события
   function pauseSend(): void;
 
 //****************************************************************
 // Time life
   function close();
-/*
-  // Закрыть поток для чтения
-  public function closeRecv(): void;
-
-  // Запись данных в поток
-  public function write(string $data): void;
-
-  // Проверка, свободен ли поток для записи
-  public function isWriteFree(): bool;
-
-  // Подписаться на событие при успешной записи
-  public function onWrite(callable $callback): void;
-
-  // Отписаться от события
-  public function offWrite(callable $callback): void;  
-*/
 }

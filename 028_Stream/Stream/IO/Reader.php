@@ -4,7 +4,7 @@ class Stream_IO_Reader extends Stream_IO_Base
   function __construct(IStream_Async $stream)
   {
     parent::__construct($stream);
-    $this->buffer = new Stream_Buffer_String();
+    $this->buffer = Stream_Buffer_Factory::create(type:'Reader');
   }
 
   function leakDispose()
@@ -19,7 +19,7 @@ class Stream_IO_Reader extends Stream_IO_Base
   //Logger::debug('onRecv(', $this->chunkSize, ')=',[$chunk]);
     if ($chunk==='') //End of stream
     {
-      if(!$this->stream->isRecvEnd())
+      if (!$this->stream->isRecvEnd())
       {
         Logger::error('onRecv: no data')->backtrace();
         return;
@@ -29,7 +29,7 @@ class Stream_IO_Reader extends Stream_IO_Base
     else
     {
       $this->buffer->add($chunk);
-      if($this->buffer->restSize() < $this->required)
+      if ($this->buffer->restSize() < $this->required)
         return;
     }
     $this->execute();
@@ -45,47 +45,10 @@ class Stream_IO_Reader extends Stream_IO_Base
   }
 
 //****************************************************************
-// Stack
+// Stream
 
   protected function stream_resume () { $this->stream->resumeRecv ($this->onRecv(...)); }
   protected function stream_pause  () { $this->stream->pauseRecv  (); }
-  
-  /**
-   * Поставить задачу на чтение в стек.
-   * @param callable $readFunc Функция чтения: fn(Pipeline_Stream_Reader $r, string $buf): bool
-   * @param callable|null $callback Колбэк завершения: fn(?\Throwable $error)
-   */
-  function asyncTask(callable $ioFunc):Promise
-  {
-    $deferred = new Deferred();
-    $this->stack_add($ioFunc, $deferred);
-    return $deferred->Promise();
-  }
-  
-  /**
-   * Поставить задачу на чтение в стек.
-   * @param callable $readFunc Функция чтения: fn(Pipeline_Stream_Reader $r, string $buf): bool
-   * @param callable|null $callback Колбэк завершения: fn(?\Throwable $error)
-   */
-  function addTask(callable $ioFunc): void
-  {
-    $this->stack_add($ioFunc);
-  }
-
-  /** Выбросить ошибку формата или сетевого сбоя прямо во время чтения */
-  function raiseError(\Throwable $error): void
-  {
-    $current = array_pop($this->stack);
-    if ($current && $current['callback'])
-      ($current['callback'])($error);
-    
-    $this->execute(); // Продолжаем крутить стек для остальных задач, если они есть
-  }
-
-  private function execute(): void
-  {
-    $this->stack_call($this);
-  }
   
 //****************************************************************
 // Requirements
@@ -125,42 +88,43 @@ class Stream_IO_Reader extends Stream_IO_Base
   private function isStreamFinished():bool { return $this->isFinished; }
   private function isFinished():bool { return $this->isStreamFinished() && !$this->buffer->has(); }
 
-  function readData(int $size):string
+  function asyncRead(int $size): Promise
+  {
+    $this->require($size, $size);
+    
+    $func = function($reader) use($size) {
+      if ($reader->buffer->restSize() >= $size)
+        return $reader->buffer->read($size);
+      Logger::error('Expected size is ', $size, ', but actual is ', $reader->buffer)->throw();
+    };
+    
+    $promise = $this->asyncTask($func);
+    return $promise;
+  }
+  
+  function readData(int $size): string
   {
     if ($this->buffer->restSize() >= $size)
       return $this->buffer->read($size);
     
-    $this->require($size, $size);
-    
-    $func = function($reader) use($size) {
-    //if ($this->buffer->restSize() >= $size)
-    //  return $this->buffer->read($size);
-    //Logger::error('Expected size is ', $size, ', but actual is ',$this->buffer)->throw();
-      if ($reader->buffer->restSize() >= $size)
-        return $reader->buffer->read($size);
-      Logger::error('Expected size is ', $size, ', but actual is ',$reader->buffer)->throw();
-    //return $reader->readData($size);
-    };
-    
-    $promise = $this->asyncTask($func);
-    
+    $promise = $this->asyncRead($size);
     return $promise->await();
   }
 
   static function untilStr($end)
   {
-    return fn($data, $offset)=>($res = strpos($data, $end, $offset)) !== false? [$res, $end]:false;
+    return fn($data, $offset)=>($res = strpos($data, $end, $offset)) !== false? [$res-$offset, $end]:false;
   }
   
   static function untilReg($pattern)
   {
-    return fn($data, $offset)=>preg_match($pattern, $data, $matches, PREG_OFFSET_CAPTURE, $offset)? [$matches[0][1], $matches[0][0]]:false;
+    return fn($data, $offset)=>preg_match($pattern, $data, $matches, PREG_OFFSET_CAPTURE, $offset)? [$matches[0][1]-$offset, $matches[0][0]]:false;
   }
   
   function readUntil(callable $until, ?bool $include=null, ?int $chunkSize=null, bool $orEnd=true)
   {
     $chunkSize ??= $this->chunkSize;
-    $func = function($reader) use($until, $include, $chunkSize, $orEnd){
+    $func = function($reader) use($until, $include, $chunkSize, $orEnd) {
       $result = $reader->buffer->until($until, $include);
       if ($result !== false)
         return $result;
@@ -190,14 +154,14 @@ class Stream_IO_Reader extends Stream_IO_Base
   function readUntilReg(string $reg  ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilReg($reg), $include, $chunkSize, $orEnd); }
   function readLine(string $end="\n" ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntilStr(            $end , $include, $chunkSize, $orEnd); }
   
-  function readList($args):array|string
+  function readList($args): array|string
   {
     $res = [];
     foreach ($args as $arg)
       switch (gettype($arg))
       {
       case 'double':
-        Logger::Warning('Reading float size is not good')->backtrace();
+        Logger::Warning('Reading float size is not a good sign')->backtrace();
         $arg = @(int)$arg;
       case 'integer':
         $res[] = $this->readData($arg);

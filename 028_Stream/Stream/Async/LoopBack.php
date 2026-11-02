@@ -4,7 +4,7 @@ class Stream_Async_LoopBack extends Stream_Async_Base
   private IStream_Buffer $buffer ;
   private bool           $isEnd  = false ;
   
-  function __construct(string $data = '') { $this->buffer = new Stream_Buffer_String($data); }
+  function __construct(string $data = '') { $this->buffer = Stream_Buffer_Factory::create($data, type:'LoopBack'); }
   
   function leakDispose()
   {
@@ -18,6 +18,7 @@ class Stream_Async_LoopBack extends Stream_Async_Base
   
 //****************************************************************
 // Recv
+
   private $onRecv = null;
 
   function restRecvSize():int { return $this->buffer->restSize(); }
@@ -25,7 +26,7 @@ class Stream_Async_LoopBack extends Stream_Async_Base
   function recv(int $size): string
   {
     $canSend = $this->canSend();
-    $result = $this->buffer->read($size);
+    $result = $this->buffer->recv($size);
     if (!$canSend && $this->isWriting())
       $this->startSend();
     return $result;

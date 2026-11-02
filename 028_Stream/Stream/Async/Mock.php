@@ -7,8 +7,9 @@ class Stream_Async_Mock extends Stream_Async_LoopBack
   {
     parent::__construct($data);
     
-    $this->getBuffer()->setLimit(1);
+    $this->getBuffer()->setCapacity(1);
   }
+
 //****************************************************************
 // Read
 
