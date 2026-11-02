@@ -1,6 +1,4 @@
 <?
-include 'Kill.php'          ;
-include 'Fibers.php'        ;
 include 'TaskScheduler.php' ;
 include 'TimerManager.php'  ;
 include 'IoWatcher.php'     ;

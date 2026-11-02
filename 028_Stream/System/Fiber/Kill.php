@@ -2,4 +2,7 @@
 /**
  * Исключение, выбрасываемое при конце файла
  */
-class Loop_Kill extends \RuntimeException {}
+class System_Fiber_Kill
+  extends \RuntimeException 
+{
+}

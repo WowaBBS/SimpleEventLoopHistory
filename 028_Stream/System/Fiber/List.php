@@ -1,15 +1,15 @@
 <?
-class Loop_Fibers
+class System_Fiber_List
 {
   private array $active = [];
-  private array $free   = [];
+  private array $free   = []; // TODO: System_Memory_Loop
 
   function has(): bool { return !$this->active; }
   
   function kill()
   {
     if (!$this->active) return;
-    $exception = new Loop_Kill();
+    $exception = new System_Fiber_Kill();
     Logger::error('Lost fibers:');
     while ($fiber = array_first($this->active))
     {

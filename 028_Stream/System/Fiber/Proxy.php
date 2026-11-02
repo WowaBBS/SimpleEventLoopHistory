@@ -1,14 +1,14 @@
 <?
-class Loop_Fiber
+class System_Fiber_Proxy
 {
   private ?\Fiber $fiber  = null ;
   private  int    $id     = 0    ;
   private ?self   $parent = null ;
   private ?array  $trace  = null ;
 
-  static list $list = [];
+  static array $list = [];
   
-  private __construct($fiber, $id)
+  private function __construct($fiber, $id)
   {
     $this->fiber = $fiber ;
     $this->id    = $id    ;
@@ -64,7 +64,7 @@ class Loop_Fiber
   
   static function makeTrace(): ?array
   {
-    if (!self::$saveTrace) return;
+    if (!self::$saveTrace) return null;
     return debug_backtrace(self::$traceOptions, self::$traceLimit);
   }
   

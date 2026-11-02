@@ -6,7 +6,7 @@ class Loop
   private static bool  $forceStop          = false; //Immideatly stop
   private static float $shiftTime          = 0;
   
-  private static Loop_Fibers        $fibers        ;
+  private static System_Fiber_List  $fibers        ;
   private static Loop_TaskScheduler $scheduler     ;
   private static Loop_TimerManager  $timers        ;
   private static Loop_IoWatcher     $io            ;
@@ -17,7 +17,7 @@ class Loop
   {
     self::$shiftTime = hrtime(true);
     
-    self::$fibers        = new Loop_Fibers        ();
+    self::$fibers        = new System_Fiber_List  ();
     self::$scheduler     = new Loop_TaskScheduler ();
     self::$timers        = new Loop_TimerManager  (self::$scheduler);
     self::$io            = new Loop_IoWatcher     ();
