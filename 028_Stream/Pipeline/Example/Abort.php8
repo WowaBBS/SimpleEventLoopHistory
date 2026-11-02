@@ -47,7 +47,7 @@ Loop::setTimeLimit(2, 1);
   }
   catch (\Throwable $e)
   {
-    Logger::error('A failure occurred: ', $e->getMessage());
+    Logger::exception($e, 'A failure occurred:');
   }
 })();
 //});

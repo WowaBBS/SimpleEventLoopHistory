@@ -1,6 +1,6 @@
 <?
 //Fluent API
-abstract class Pipeline
+abstract class Pipeline implements IDebug_Leak_Object
 {
   protected bool $isCancelled = false; // Был ли этот конкретный шаг отменен
   protected bool $isEnded     = false;
@@ -222,7 +222,7 @@ abstract class Pipeline
   function abort(\Throwable|string $reason='abort'): void { $this->abortPipeline($reason); }
   function abortPipeline(\Throwable|string $reason='abort'): void
   {
-    $this->debug('Abort ', $reason, ['cancelled'=>$this->isCancelled, 'ended'=>$this->isEnded]);
+  //$this->debug('Abort ', $reason, ['cancelled'=>$this->isCancelled, 'ended'=>$this->isEnded]);
     if (!$this->isValid()) { $this->logicError('can\'t abort invalid pipeline'); return; }
     
     $this->isCancelled = true;
