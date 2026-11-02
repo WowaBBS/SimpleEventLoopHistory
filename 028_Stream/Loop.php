@@ -6,23 +6,23 @@ class Loop
   private static bool  $forceStop          = false; //Immideatly stop
   private static float $shiftTime          = 0;
   
-  private static System_Fiber_List  $fibers        ;
-  private static Loop_TaskScheduler $scheduler     ;
-  private static Loop_TimerManager  $timers        ;
-  private static Loop_IoWatcher     $io            ;
-  private static Loop_SignalTracker $signals       ;
-  private static Loop_WatchingTimer $watchingTimer ;
+  private static System_Fiber_List     $fibers        ;
+  private static Loop_TaskScheduler    $scheduler     ;
+  private static Loop_TimerManager     $timers        ;
+  private static Loop_IoWatcher        $io            ;
+  private static System_Signal_Tracker $signals       ;
+  private static Loop_WatchingTimer    $watchingTimer ;
   
   static function init()
   {
     self::$shiftTime = hrtime(true);
     
-    self::$fibers        = new System_Fiber_List  ();
-    self::$scheduler     = new Loop_TaskScheduler ();
-    self::$timers        = new Loop_TimerManager  (self::$scheduler);
-    self::$io            = new Loop_IoWatcher     ();
-    self::$signals       = new Loop_SignalTracker ();
-    self::$watchingTimer = new Loop_WatchingTimer ();
+    self::$fibers        = new System_Fiber_List     ();
+    self::$scheduler     = new Loop_TaskScheduler    ();
+    self::$timers        = new Loop_TimerManager     (self::$scheduler);
+    self::$io            = new Loop_IoWatcher        ();
+    self::$signals       = new System_Signal_Tracker ();
+    self::$watchingTimer = new Loop_WatchingTimer    ();
     Debug_Leak_Tracker::init();
   }
   

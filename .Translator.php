@@ -152,7 +152,7 @@ TranslateTo],
 [// ---------------- \Loop::run()//Comment (Loop.php, Loop1.php)
 'From' => 'Таймаут для select: берем время до ближайшего таймера или 1 секунду',
 'To'   => 'Timeout for select: use the time until the nearest timer or 1 second.'],
-[// ---------------- \Loop::run()//Comment (Loop.php)
+[// NEW ---------------- \Loop::run()//Comment (Loop.php)
 <<<'TranslateFrom'
 Ждем системного уведомления о готовности потоков
 Ошибка stream_select прерывает функцию при получении системного сигнала на Linux,
@@ -178,7 +178,7 @@ TranslateTo],
 [// ---------------- \Promise::await()//Comment (Promise.php)
 'From' => '... (предыдущие свойства: state, value, handlers)',
 'To'   => '... (previous properties: state, value, handlers)'],
-[// ---------------- \Loop::addSignal()//Comment (Loop.php)
+[// NEW ---------------- \Loop::addSignal()//Comment (Loop.php)
 'From' => '... (методы delay, addReadStream, removeReadStream остаются прежними)',
 'To'   => '... (методы delay, addReadStream, removeReadStream остаются прежними)'],
 [// ---------------- \Loop::addSignal()//Doc (Loop.php)
@@ -308,7 +308,7 @@ TranslateTo],
 [// ---------------- \AsyncFileReader::tick()//Comment (FileReaderExec.php), \FileReaderExec::tick()//Comment (FileReaderExec.php)
 'From' => 'Процесс еще читает файл',
 'To'   => 'The process is still reading the file.'],
-[// ---------------- //Comment (FileReadExec.Test.php8)
+[// NEW ---------------- //Comment (FileReadExec.Test.php8)
 <<<'TranslateFrom'
  Запускаем асинхронное чтение
 $FileName='large_file.log';

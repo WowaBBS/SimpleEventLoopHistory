@@ -1,4 +1,4 @@
-<?
+<?php
 class System_Memory_GC
 {
   static array $callbacks =[];

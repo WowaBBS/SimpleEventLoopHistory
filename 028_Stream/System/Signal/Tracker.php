@@ -1,5 +1,5 @@
 <?
-class Loop_SignalTracker
+class System_Signal_Tracker
 {
   private array $callbacks   = [];
   private bool  $initialized = false;
