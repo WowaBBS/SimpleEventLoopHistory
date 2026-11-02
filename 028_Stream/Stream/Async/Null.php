@@ -1,5 +1,5 @@
 <?
-class Stream_Async_Null implements IStream_Async, ILeakObject
+class Stream_Async_Null implements IStream_Async, IDebug_Leak_Object
 {
   function leakDispose() {}
   

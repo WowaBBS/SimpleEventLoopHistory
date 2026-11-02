@@ -2,7 +2,7 @@
 /*
  * Memory leak detector
  */
-class Loop_LeakTracker
+class Debug_Leak_Tracker
 {
   private static bool    $catchLostObjects =true;
   private static WeakMap $lostObjects      ;
@@ -64,14 +64,14 @@ class Loop_LeakTracker
   }
   
   // Used in Pipeline and Promise
-  static function register(ILeakObject $object)
+  static function register(IDebug_Leak_Object $object)
   {
     if (!self::$catchLostObjects) return;
     
     self::$lostObjects[$object] = self::makeTrace()?? true;
   }
   
-  static function unregister(ILeakObject $object)
+  static function unregister(IDebug_Leak_Object $object)
   {
     unset(self::$lostObjects[$object]);
   }

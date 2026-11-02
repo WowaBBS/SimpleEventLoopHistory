@@ -1,4 +1,5 @@
 <?
+include 'Debug/_All.php';
 include 'Stat/_All.php';
 include 'Stat.php';
 include 'Loop/_All.php';

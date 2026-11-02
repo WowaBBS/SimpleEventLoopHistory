@@ -1,5 +1,5 @@
 <?
-abstract class Stream_Stack_Base implements IStream_Stack, ILeakObject
+abstract class Stream_Stack_Base implements IStream_Stack, IDebug_Leak_Object
 {
   static function isFinished($result) { return $result!==false && $result!==null; }
   

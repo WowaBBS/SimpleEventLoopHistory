@@ -23,13 +23,13 @@ class Loop
     self::$io            = new Loop_IoWatcher     ();
     self::$signals       = new Loop_SignalTracker ();
     self::$watchingTimer = new Loop_WatchingTimer ();
-    Loop_LeakTracker::init();
+    Debug_Leak_Tracker::init();
   }
   
   static function dispose()
   {
     self::$fibers->dispose();
-    Loop_LeakTracker::checkLost();
+    Debug_Leak_Tracker::checkLost();
   }
   
 //static function getTime() { return microtime(true); }

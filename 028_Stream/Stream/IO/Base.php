@@ -1,9 +1,9 @@
 <?
-abstract class Stream_IO_Base implements IStream_IO, ILeakObject
+abstract class Stream_IO_Base implements IStream_IO, IDebug_Leak_Object
 {
   protected IStream_Async $stream;
   
-  public function __construct(IStream_Async $stream) { $this->stream = $stream; Loop_LeakTracker::register($this); }
+  public function __construct(IStream_Async $stream) { $this->stream = $stream; Debug_Leak_Tracker::register($this); }
   
   function leakDispose()
   {

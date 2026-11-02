@@ -9,7 +9,7 @@ abstract class Pipeline
   {
     Stat::$pipeline->add();
     if(!static::isSingleton())
-      Loop_LeakTracker::register($this);
+      Debug_Leak_Tracker::register($this);
     $parent?->registerChild($this);
   }
 

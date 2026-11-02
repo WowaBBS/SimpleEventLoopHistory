@@ -1,11 +1,11 @@
 <?
-class Stream_Sync implements IStream, ILeakObject
+class Stream_Sync implements IStream, IDebug_Leak_Object
 {
   protected $reader { get=>$this->reader ??= new Stream_IO_Reader($this->stream); }
   protected $writer { get=>$this->writer ??= new Stream_IO_Writer($this->stream); }
   protected ?IStream_Async $stream;
   
-  function __construct(IStream_Async $stream) { $this->stream = $stream; Loop_LeakTracker::register($this); }
+  function __construct(IStream_Async $stream) { $this->stream = $stream; Debug_Leak_Tracker::register($this); }
 
   function leakDispose()
   {

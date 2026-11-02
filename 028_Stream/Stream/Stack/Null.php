@@ -1,5 +1,5 @@
 <?
-class Stream_Stack_Null implements IStream_Stack, ILeakObject
+class Stream_Stack_Null implements IStream_Stack, IDebug_Leak_Object
 {
   static function get() { static $result = new Static(); return $result; }
   
