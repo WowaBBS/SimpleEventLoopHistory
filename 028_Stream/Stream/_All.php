@@ -7,3 +7,4 @@ include 'Exception/_All.php' ;
 include 'Until/_All.php'     ;
 include 'IO/_All.php'        ;
 include 'Sync.php'           ;
+include 'SyncSimple.php'     ;

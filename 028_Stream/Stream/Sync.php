@@ -27,6 +27,7 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
 //****************************************************************
 // Read
 
+  function waitData (                               ): bool   { return $this->reader->waitData (           ); }
   function waitMore (                               ): bool   { return $this->reader->waitMore (           ); }
   function readData (int    $size  ,?int $min=null  ): string { return $this->reader->readData ($args ,$min); }
   function peek     (int    $min=1 ,?int $max=null  ): string { return $this->reader->peek     ($min  ,$max); }

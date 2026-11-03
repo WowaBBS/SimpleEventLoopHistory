@@ -119,7 +119,7 @@ class Requests //implements IStream_Struct
   function read(IStream $s)
   {
   //$s->repeatUntilEnd(Request::class);?
-    while ($s->waitMore())
+    while ($s->waitData())
     {
       $item = new Request();
       $item->read($s);

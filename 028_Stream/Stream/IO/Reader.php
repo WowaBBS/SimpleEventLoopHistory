@@ -96,7 +96,8 @@ class Stream_IO_Reader extends Stream_IO_Base
   
   protected function isEnd():bool { return $this->isStreamEnd() && !$this->buffer->has(); }
   
-  public function waitMore():bool { $this->until()->more()->read(); return !$this->isEnd(); }
+  public function waitData():bool { $this->until()->more()->read(); return !$this->isEnd(); }
+  public function waitMore():bool { $this->until()->more($this->buffer->restSize())->read(); return !$this->isEnd(); }
 
   function asyncRead(int $size, ?int $min=null): Promise
   {
