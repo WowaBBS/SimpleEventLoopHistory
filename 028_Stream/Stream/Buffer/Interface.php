@@ -26,7 +26,7 @@ interface IStream_Buffer
   //       false -- результат не включает конец, он остаётся в буффере.
   //       null  -- результат не включает конец, но он скпинут
   //       true  -- результат включает конец
-  function until    (callable $find, ?bool $include=null): false|string;
+  function until    (callable $find, ?bool $include=null): ?string;
   
   static function hasFastUnreadNew   (): bool; //List
   static function hasFastUnreadExist (): bool; //Offset, List

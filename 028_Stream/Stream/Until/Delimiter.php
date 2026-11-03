@@ -9,11 +9,11 @@ class Stream_Until_Delimiter extends Stream_Until_Base
     $this->delimiter = $delimiter;
   }
   
-  function onUntil($data, $offset): false|array
+  function onUntil($data, $offset): ?array
   {
     $res = strpos($data, $this->delimiter, $offset);
     
-    if ($res === false) return false;
+    if ($res === false) return null;
     
     return [$res - $offset, $this->delimiter];
   }

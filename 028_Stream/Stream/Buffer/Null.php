@@ -19,7 +19,7 @@ class Stream_Buffer_Null implements IStream_Buffer
   #[\Override] function readAll     (             ): string { return ''    ; }
   #[\Override] function unread      (string $data ): void   {                }
   #[\Override] function dataOffs    (             ): array  { return ['', 0]; }
-  #[\Override] function until       (callable $find, ?bool $include=null):false|string { return false; }
+  #[\Override] function until       (callable $find, ?bool $include=null):?string { return null; }
 
   static function hasFastUnreadNew   (): bool { return false; }
   static function hasFastUnreadExist (): bool { return false; }

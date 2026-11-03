@@ -203,12 +203,12 @@ class Stream_SyncSimple implements IStream
   }
   
   function require(int $bytes, ?int $expect=null) {}
-  function isStreamEnd() { return $this->isRecvEnd; }
+  function isRecvEnd() { return $this->isRecvEnd; }
   function buffer_readAll() { $result=$this->readBuffer; $this->readBuffer=''; return $result; }
-  function buffer_until    (callable $find, ?bool $include=null): false|string
+  function buffer_until    (callable $find, ?bool $include=null): ?string
   {
     $pos = $find($this->readBuffer, 0);
-    if ($pos === false) return false;
+    if ($pos === null) return null;
     [$pos, $end] = $pos;
     if ($include === true) $pos += strlen($end);
     $result = $this->read($pos);

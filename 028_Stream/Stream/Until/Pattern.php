@@ -9,11 +9,11 @@ class Stream_Until_Pattern extends Stream_Until_Base
     $this->pattern = $pattern;
   }
   
-  function onUntil($data, $offset): false|array
+  function onUntil($data, $offset): ?array
   {
     if (preg_match($this->pattern, $data, $matches, PREG_OFFSET_CAPTURE, $offset))
       return [$matches[0][1]-$offset, $matches[0][0]];
       
-    return false;
+    return null;
   }
 }

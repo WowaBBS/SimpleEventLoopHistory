@@ -51,7 +51,7 @@ abstract class Stream_Buffer_Base implements IStream_Buffer
     return $result;
   }
   
-  function until (callable $find, ?bool $include=null): false|string
+  function until (callable $find, ?bool $include=null): ?string
   {
   /* Debug
     [$data, $offset] = $this->dataOffs();
@@ -59,7 +59,7 @@ abstract class Stream_Buffer_Base implements IStream_Buffer
     Logger::debug('Until ', [$data, $offset], ' = ', $pos);
   */
     $pos = $find(...$this->dataOffs());
-    if ($pos === false) return false;
+    if ($pos === null) return null;
     [$pos, $end] = $pos;
     if ($include === true) $pos += strlen($end);
     $result = $this->read($pos);

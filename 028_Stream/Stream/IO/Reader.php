@@ -35,7 +35,7 @@ class Stream_IO_Reader extends Stream_IO_Base
     $this->execute();
   }
   
-  function onEnd() { $this->isStreamEnd = true; }
+  function onEnd() { $this->isRecvEnd = true; }
 
   /** Уведомить стрим, сколько байт из буфера было успешно прочитано (потреблено) */
   function consume(int $bytes): void
@@ -55,8 +55,8 @@ class Stream_IO_Reader extends Stream_IO_Base
 
   private IStream_Buffer $buffer;
   
-  function buffer_until    (callable $find, ?bool $include=null): false|string { return $this->buffer->until    ($find, $include); }
-  function buffer_readAll  (                                   ):       string { return $this->buffer->readAll  (               ); }
+  function buffer_until    (callable $find, ?bool $include=null):?string { return $this->buffer->until    ($find, $include); }
+  function buffer_readAll  (                                   ): string { return $this->buffer->readAll  (               ); }
   
 //****************************************************************
 // Requirements
@@ -91,10 +91,10 @@ class Stream_IO_Reader extends Stream_IO_Base
 //****************************************************************
 // sync
 
-  private bool $isStreamEnd = false;
-  public  function isStreamEnd():bool { return $this->isStreamEnd; } //TODO: private
+  private bool $isRecvEnd = false;
+  public  function isRecvEnd():bool { return $this->isRecvEnd; } //TODO: private
   
-  protected function isEnd():bool { return $this->isStreamEnd() && !$this->buffer->has(); }
+  protected function isEnd():bool { return $this->isRecvEnd() && !$this->buffer->has(); }
   
   public function waitData():bool { $this->until()->more()->read(); return !$this->isEnd(); }
   public function waitMore():bool { $this->until()->more($this->buffer->restSize())->read(); return !$this->isEnd(); }
@@ -109,7 +109,7 @@ class Stream_IO_Reader extends Stream_IO_Base
       if ($min !== null && $this->buffer->restSize() >= $min)
         return $this->buffer_readAll();
     
-      if ($this->isStreamEnd())
+      if ($this->isRecvEnd())
         throw new Stream_Exception_End();
       
       // timeout?
@@ -124,7 +124,7 @@ class Stream_IO_Reader extends Stream_IO_Base
   {
     if ($this->buffer->restSize() >= $size)
       return $this->buffer->read($size);
-    if ($this->isStreamEnd()) //Or timeout?
+    if ($this->isRecvEnd()) //Or timeout?
       if ($min !== null && $this->buffer->restSize() >= $min)
         return $this->buffer_readAll();
       else

@@ -21,18 +21,18 @@ abstract class Stream_Until_Base
   function strict    ( bool $v =true) { $this->strict    =$v; return $this; }
   function include   (?bool $v =null) { $this->include   =$v; return $this; }
   
-  abstract function onUntil($data, $offset): false|array;
+  abstract function onUntil($data, $offset): ?array;
   
   function onRead($reader)
   {
     $result = $reader->buffer_until($this->onUntil(...), $this->include); //TODO: $this->limit
-    if ($result !== false)
+    if ($result !== null)
       return $result;
     
-    if (!$reader->isStreamEnd())
+    if (!$reader->isRecvEnd())
     { //TODO:          0?
       $reader->require(1, $this->chunkSize);
-      return false;
+      return null;
     }
     
     if (!$this->strict)
@@ -44,7 +44,7 @@ abstract class Stream_Until_Base
   function read():mixed
   {
     $result = $this->onRead($this->reader);
-    if ($result !== false)
+    if (Stream_Stack_Base::isFinished($result))
       return $result;
     
     $promise = $this->reader->asyncTask($this->onRead(...));

@@ -1,7 +1,7 @@
 <?
 abstract class Stream_Stack_Base implements IStream_Stack, IDebug_Leak_Object
 {
-  static function isFinished($result) { return $result!==false && $result!==null; }
+  static function isFinished($result) { return $result!==null; }
   
   function leakDispose() {}
   

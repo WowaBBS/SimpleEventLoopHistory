@@ -12,8 +12,8 @@ class Stream_Until_More extends Stream_Until_Base
   function strict    ( bool $v =true) { return $this; }
   function include   (?bool $v =null) { return $this; }
 
-  function onUntil($data, $offset): false|array
+  function onUntil($data, $offset): ?array
   {
-    return strlen($data) > $offset + $this->size ? [0, '']:false;
+    return strlen($data) > $offset + $this->size ? [0, '']:null;
   }
 }
