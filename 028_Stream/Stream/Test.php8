@@ -15,7 +15,7 @@ include '../_All.Cli.php';
       
       HereDoc;
     $stream->write($example);
-    sleepAsync(1)->await();
+    //sleepAsync(1)->await();
     $stream->write('DelayedLine'."\n");
     $stream->writeEnd();
   });

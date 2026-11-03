@@ -114,7 +114,7 @@ class Request //implements IStream_Struct
 
 class Requests //implements IStream_Struct
 {
-  var $list  ;
+  var $list  =[];
 
   function read(IStream $s)
   {
@@ -166,7 +166,7 @@ Loop::async
     
     HereDoc;
   
-  $example = Str_Replace("\n", "\r\n", $example);
+  $example = str_replace("\n", "\r\n", $example);
   
   $istream = new Stream_Async_Mock()->syncStream();
   $ostream = new Stream_Async_Mock()->syncStream();
@@ -180,8 +180,8 @@ Loop::async
     
     if ($result === $example) return Logger::log('Ok');
     
-    $result  = Str_Replace("\r\n", "\n", $result  );
-    $example = Str_Replace("\r\n", "\n", $example );
+    $result  = str_replace("\r\n", "\n", $result  );
+    $example = str_replace("\r\n", "\n", $example );
     
     Logger::error('Failed:')->Dump([$result, $example]);//($result);
   });
