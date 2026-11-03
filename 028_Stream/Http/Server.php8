@@ -2,13 +2,8 @@
 include '../_All.Cli.php';
 
 // Бизнес-логика обработки HTTP-запроса
-$httpHandler = function(string $rawRequest, HttpConnection $connection): bool|string
+$httpHandler = function(string $path, HttpConnection $connection): bool|string
 {
-  // Парсим первую строчку HTTP запроса (например: GET /index.html HTTP/1.1)
-  $lines = explode("\r\n", $rawRequest,2);
-  preg_match('/GET\s+(\/[^\s]*)/', $lines[0], $matches);
-  $path = $matches[1] ?? '/';
-
   $connection->log('Path requested: ', $path);
 
   // Сценарий А: Выход через веб

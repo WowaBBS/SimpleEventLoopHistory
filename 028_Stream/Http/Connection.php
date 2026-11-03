@@ -4,34 +4,59 @@
  */
 class HttpConnection
 {
-  private SocketConnection $transport;
-  private string $buffer = '';
+  private IStream $stream;
+  private int $id;
   private bool $headersSent = false;
-  /** @var callable */
-  private $requestReadyCallback;
-
-  function __construct(SocketConnection $transport, callable $requestReadyCallback)
+  
+  function __construct(IStream $stream, int $id, callable $handler)
   {
-    $this->requestReadyCallback = $requestReadyCallback;
+    $this->stream = $stream;
+    $this->id = $id;
 
-    // Передаем SocketConnection самого себя в качестве фабрики,
-    // внедряя колбэк накопления буфера HTTP
-    $this->transport = $transport;
-    $transport->resumeRead($this->appendBuffer(...));
+    // Запускаем синхронную обработку в изолированном файбере
+    Loop::async($this->handleSession(...), $handler);
   }
-
-  private function appendBuffer(string $chunk): void
+  
+  /**
+   * Асинхронная обработка бизнес-логики внутри файбера
+   */
+  private function handleSession(callable $handler): void
   {
-    $this->buffer .= $chunk;
+    try
+    {
+      // 1. Читаем стартовую строку HTTP-запроса синхронно!
+      // readLine автоматически вырежет "\r\n" на конце
+      $requestLine = $this->stream->readLine("\r\n");
+      if (empty($requestLine)) return;
 
-    // Для простоты HTTP-сервера: проверяем, долетели ли заголовки полностью (разделитель \r\n\r\n)
-    if (!str_contains($this->buffer, "\r\n\r\n")) return;
-    
-    // Заголовки получены полностью. Снимаем сокет с чтения, чтобы не читать лишнего
-    Loop::removeReadStream($this->transport->getResource());
+      // Парсим первую строчку HTTP запроса (например: GET /index.html HTTP/1.1)
+      preg_match('/GET\s+(\/[^\s?]*)/', $requestLine, $matches);
+      $path = $matches[1] ?? '/';
 
-    // Вызываем колбэк сервера, передавая накопленный запрос
-    ($this->requestReadyCallback)($this, $this->buffer);
+      // 2. Читаем все заголовки построчно, пока не встретим пустую строку
+      $headers =[];
+      while (($line = $this->stream->readLine("\r\n")) !== "")
+        $headers[] = $line;
+      
+      // 3. Вызываем пользовательский хендлер бизнес-логики
+      $result = $handler($path, $this);
+
+      // 4. Умный роутинг по результату ответа
+      if ($result === true) return;// Сценарий 1: Хендлер сам отправил все данные (например, /bigfile)
+      if (is_string($result)) // Сценарий 2: Хендлер просто вернул строку - отдаем её со статусом 200
+        $this->sendResponse(200, 'Ok', $result);
+      else // Сценарий 3: Страница не найдена - отдаем красивую 404
+        $this->sendResponse(404, 'Not Found', '<h1>Page not found</h1>');
+    }
+    catch (\Throwable $e)
+    {
+      $this->log('Processing error')->exception($e);
+      try { $this->sendResponse(500, 'Internal Server Error', '<h1>Internal Server Error</h1>'); } catch (\Throwable) {}
+    }
+    finally
+    {
+      $this->stream->close();
+    }
   }
 
   /**
@@ -51,7 +76,7 @@ class HttpConnection
     $this->headersSent = true;
     // Записываем ответ клиенту.
     // В идеале запись тоже должна быть через write-стримы Loop, но для базы используем прямую отправку
-    return $this->transport->write($response); // Делегируем запись транспорту
+    return $this->stream->write($response); // Делегируем запись транспорту
   }
 
   /**
@@ -68,9 +93,9 @@ class HttpConnection
     if (!$this->sendHeaders($statusCode, $statusText, $headers))
       return false;
     
-    return $this->transport->write($body);
+    return $this->stream->write($body);
   }
-
+  
   /**
    * Отправляет кусок файла. Если вернулось false (обрыв),
    * вызывающий код (цикл генерации файла) должен сразу выйти.
@@ -81,11 +106,11 @@ class HttpConnection
       throw new \LogicException("Нельзя отправлять данные без заголовков.");
     
     // Используем базовый асинхронный метод записи с Backpressure
-    return $this->transport->write($data);
+    return $this->stream->write($data);
   }
 
   /** Проксируем ID и Логгер наружу для удобства хендлера */
-  function getId(): int { return $this->transport->getId(); }
-  function close(): void { $this->transport->close(); }
-  function log(mixed ...$args): void { $this->transport->log(...$args); }
+  function getId(): int { return $this->id; }
+  function close(): void { $this->stream->close(); }
+  function log(...$args) { return Logger::log('[Client #', $this->id, '] ', ...$args); }
 }

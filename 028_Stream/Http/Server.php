@@ -52,47 +52,16 @@ class HttpServer
     $clientSocket = @stream_socket_accept($serverSocket, 0); // 0 - таймаут мгновенно
     if (!$clientSocket) return;
     
+    // 1. Создаем асинхронный транспорт (Реализует IStream_Async)
+    $asyncTransport = new SocketConnection($clientSocket);
+    $clientId = $asyncTransport->getId();
+    
+    // 2. Оборачиваем его в синхронный стрим (Реализует IStream)
+    $syncStream = $asyncTransport->syncStream(); //new Pipeline_Stream_Sync($asyncTransport);
+    
     $transport = new SocketConnection($clientSocket);
 
-    // Создаем объект-обёртку для HTTP протокола
-    new HttpConnection($transport, $this->onClientRequestReady(...));
-  }
-
-  /** Вызывается из HttpConnection, когда http-запрос полностью вычитан из сети */
-  private function onClientRequestReady(HttpConnection $connection, string $requestData): void
-  {
-    Loop::async($this->handleClientRequest(...), $connection, $requestData);
-  }
-
-  /**
-   * Асинхронная обработка бизнес-логики внутри файбера
-   */
-  private function handleClientRequest(HttpConnection $connection, string $requestData): void
-  {
-    try
-    {
-      // Вызываем пользовательский обработчик, передавая туда сырой запрос.
-      // Если внутри обработчика будет вызван await() (например, запрос к БД или файлу),
-      // этот файбер замрет, но сервер продолжит принимать других клиентов!
-      $result = ($this->handler)($requestData, $connection);
-      
-      // --- УМНЫЙ РОУТИНГ ПО РЕЗУЛЬТАТУ ВЫПОЛНЕНИЯ ХЕНДЛЕРА ---      
-      
-      // Сценарий 1: Хендлер сам отправил все данные (например, /bigfile)
-      if ($result === true) return;
-      if (is_string($result)) // Сценарий 2: Хендлер просто вернул строку - отдаем её со статусом 200
-        $connection->sendResponse(200, 'Ok', $result);
-      else // Сценарий 3: Страница не найдена - отдаем красивую 404
-        $connection->sendResponse(404, 'Not Found', '<h1>Page not found</h1>');
-    }
-    catch (\Throwable $e)
-    {
-      $connection->log('Processing error')->exception($e);
-      try { $connection->sendResponse(500, 'Internal Server Error', '<h1>Internal Server Error</h1>'); } catch (\Throwable) {}
-    }
-    finally
-    {
-      $connection->close();
-    }
+    // 3. Передаем синхронный стрим в HttpConnection, который будет работать с ним в Файбере
+    new HttpConnection($syncStream, $clientId, $this->handler);
   }
 }

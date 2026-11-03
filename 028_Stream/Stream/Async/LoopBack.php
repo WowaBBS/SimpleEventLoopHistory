@@ -9,8 +9,6 @@ class Stream_Async_LoopBack extends Stream_Async_Base
   function leakDispose()
   {
     parent::leakDispose();
-    $this->onRecv = null;
-    $this->onSend = null;
     $this->buffer = Stream_Buffer_Null::Get();
   }
   
@@ -18,8 +16,6 @@ class Stream_Async_LoopBack extends Stream_Async_Base
   
 //****************************************************************
 // Recv
-
-  private $onRecv = null;
 
   function restRecvSize():int { return $this->buffer->restSize(); }
   function hasDataToRecv():bool { return $this->buffer->has(); }
@@ -34,51 +30,24 @@ class Stream_Async_LoopBack extends Stream_Async_Base
   
   function isRecvEnd(): bool { return $this->isEnd && !$this->hasDataToRecv(); }
   
-  function isReading(): bool { return (bool)$this->onRecv; }
-  
-  function resumeRecv($callback): void
+  protected function startRecv(bool $enable)
   {
-  //Logger::debug('resumeRecv');
-    if ($this->isReading())
-    { 
-      Logger::error('Unallowed resumeRecv twice')->backTrace();
-      $this->onRecv = $callback; //TODO: Check equals
-    }
-    else
-    {
-      $this->onRecv = $callback;
-      $this->startRecv();
-    }
-  }
-  
-  function pauseRecv(): void
-  {
-  //Logger::debug('pauseRecv');
-    if (!$this->isReading()) Logger::error('Unallowed pauseRecv twice')->backTrace();
-    $this->onRecv = null;
-  }
-  
-  protected function startRecv()
-  {
+    if (!$enable) return;
     if (!$this->hasDataToRecv() && !$this->isEnd) return;
-    Loop::next($this->onRecv(...));
+    Loop::next($this->handleRead(...));
   }
   
-  protected function onRecv()
+  protected function handleRead(): void
   {
-    if (!$this->isReading()) return; //TODO: Logger::error('Unallowed onRecv without resumeRecv')->backTrace();
-    ($this->onRecv)($this);
+    parent::handleRead();
     if (!$this->isReading()) return;
     if (!$this->hasDataToRecv()) return;
-    $this->startRecv();
+    $this->startRecv(true);
   }
 
 //****************************************************************
 // Write
 
-  private $onSend = null;
-  
-  function isWriting(): bool { return (bool)$this->onSend; }
   function canSendSize(): int { return $this->buffer->getFree(); }
   function canSend(): bool { return $this->canSendSize()>0; }
 
@@ -99,7 +68,7 @@ class Stream_Async_LoopBack extends Stream_Async_Base
     $hadData = $this->hasDataToRecv();
     $this->buffer->add($data);
     if (!$hadData && $this->isReading())
-      $this->startRecv();
+      $this->startRecv(true);
     return strlen($data);
   }
 
@@ -109,50 +78,21 @@ class Stream_Async_LoopBack extends Stream_Async_Base
     $this->isEnd = true;
     if ($this->hasDataToRecv()) return;
     if (!$this->isReading()) return;
-    $this->startRecv();
+    $this->startRecv(true);
   }
 
-  function resumeSend($callabck): void
+  function startSend(bool $enable)
   {
-  //Logger::debug('resumeSend');
-    if ($this->isWriting())
-    {
-      Logger::error('Unallowed resumeSend twice')->backTrace();
-      $this->onSend = $callabck; //TODO: Check equals
-    }
-    else
-    {
-      $this->onSend = $callabck;
-      $this->startSend();
-    }
-  }
-  
-  function startSend()
-  {
+    if (!$enable) return;
+    
     if (!$this->canSend() || $this->isEnd) return;
-    Loop::next($this->onSend(...));
-  }
-  
-  function pauseSend(): void
-  {
-  //Logger::debug('pauseSend');
-    if (!$this->isWriting()) 
-      Logger::error('Unallowed pauseSend twice')->backTrace();
-      
-    $this->onSend = null;
-  }
-  
-  function onSend()
-  {
-    if (!$this->isWriting())
-      Logger::error('Unallowed onSend without resumeSend')->backTrace();
-    else
-      ($this->onSend)($this);
+    Loop::next($this->handleWrite(...));
   }
   
 //****************************************************************
 
   function close()
   {
+    parent::close();
   }
 };
