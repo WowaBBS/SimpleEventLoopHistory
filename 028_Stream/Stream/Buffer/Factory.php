@@ -1,9 +1,6 @@
 <?
 class Stream_Buffer_Factory
 {
-//public static string $default = Stream_Buffer_String::class;
-//public static string $default = Stream_Buffer_Offset::class;
-//public static string $default = Stream_Buffer_List::class;
   public static array  $list = [
     'String' =>Stream_Buffer_String ::class,
     'Offset' =>Stream_Buffer_Offset ::class,

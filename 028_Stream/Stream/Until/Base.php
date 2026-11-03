@@ -1,23 +1,25 @@
 <?
 abstract class Stream_Until_Base
 {
-  public ?bool $include   =null;
+  protected $reader;
+
+//Search arguments
   public ?int  $chunkSize =null; 
-  public  bool $orEnd     =true;
   public ?int  $limit     =null;
   
-  function __construct(
-    ?bool $include   =null,
-    ?int  $chunkSize =null, 
-     bool $orEnd     =true,
-    ?int  $limit     =null,
-  )
+//Result arguments
+  public  bool $orEnd     =true;
+  public ?bool $include   =null;
+  
+  function __construct($reader)
   {
-    $this->include   =$include   ;
-    $this->chunkSize =$chunkSize ;
-    $this->orEnd     =$orEnd     ;
-    $this->limit     =$limit     ;
+    $this->reader = $reader;
   }
+
+  function chunkSize (?int  $v =null) { $this->chunkSize =$v; return $this; }
+  function limit     (?int  $v =null) { $this->limit     =$v; return $this; }
+  function orEnd     ( bool $v =true) { $this->orEnd     =$v; return $this; }
+  function include   (?bool $v =null) { $this->include   =$v; return $this; }
   
   abstract function onUntil($data, $offset): false|array;
   
@@ -28,7 +30,7 @@ abstract class Stream_Until_Base
       return $result;
     
     if (!$reader->isStreamEnd())
-    {  //TODO:         0?
+    { //TODO:          0?
       $reader->require(1, $this->chunkSize);
       return false;
     }
@@ -37,5 +39,16 @@ abstract class Stream_Until_Base
       return $reader->buffer_readAll();
     
     throw new Stream_Exception_End();
+  }
+  
+  function read():mixed
+  {
+    $result = $this->onRead($this->reader);
+    if ($result !== false)
+      return $result;
+    
+    $promise = $this->reader->asyncTask($this->onRead(...));
+    
+    return $promise->await();
   }
 }

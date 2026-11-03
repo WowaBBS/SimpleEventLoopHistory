@@ -51,9 +51,16 @@ class Stream_IO_Reader extends Stream_IO_Base
   protected function stream_pause  () { $this->stream->pauseRecv  (); }
   
 //****************************************************************
-// Requirements
+// Buffer
 
   private IStream_Buffer $buffer;
+  
+  function buffer_until    (callable $find, ?bool $include=null): false|string { return $this->buffer->until    ($find, $include); }
+  function buffer_readAll  (                                   ):       string { return $this->buffer->readAll  (               ); }
+  
+//****************************************************************
+// Requirements
+
   private int $required  = 0;
   private int $expected  = 0;
   private int $chunkSize = 8*1024;
@@ -85,8 +92,8 @@ class Stream_IO_Reader extends Stream_IO_Base
 // sync
 
   private bool $isStreamEnd = false;
-  private function isStreamEnd():bool { return $this->isStreamEnd; }
-  public  function isEnd():bool { $this->readUntilMore(); return $this->isStreamEnd() && !$this->buffer->has(); }
+  public  function isStreamEnd():bool { return $this->isStreamEnd; } //TODO: private
+  public  function isEnd():bool { $this->until()->more()->read(); return $this->isStreamEnd() && !$this->buffer->has(); }
 
   function asyncRead(int $size): Promise
   {
@@ -111,54 +118,10 @@ class Stream_IO_Reader extends Stream_IO_Base
     return $promise->await();
   }
 
-  static function untilMore($data, $offset) { return strlen($data)>$offset? [0, '']:false; }
-  static function untilEnd($data, $offset) { return false; }
-  
-  static function untilStr($end)
-  {
-    return fn($data, $offset)=>($res = strpos($data, $end, $offset)) !== false? [$res-$offset, $end]:false;
-  }
-  
-  static function untilReg($pattern)
-  {
-    return fn($data, $offset)=>preg_match($pattern, $data, $matches, PREG_OFFSET_CAPTURE, $offset)? [$matches[0][1]-$offset, $matches[0][0]]:false;
-  }
-  
-  function readUntil(callable $until, ?bool $include=null, ?int $chunkSize=null, bool $orEnd=true)
-  {
-    $chunkSize ??= $this->chunkSize;
-    $func = function($reader) use($until, $include, $chunkSize, $orEnd) {
-      $result = $reader->buffer->until($until, $include);
-      if ($result !== false)
-        return $result;
-      
-      if (!$reader->isStreamEnd())
-      {
-        $this->require(1, $chunkSize);
-        return false;
-      }
-      
-      if ($orEnd)
-        return $reader->buffer->readAll();
-      
-      throw new Stream_Exception_End();
-    };
+  function until(): Stream_Until_Factory { return new Stream_Until_Factory($this); }
 
-    $result = $func($this);
-    if ($result !== false)
-      return $result;
-    
-    $promise = $this->asyncTask($func);
-    
-    return $promise->await();
-  }
-  
-  function readUntilMore(                                  ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilMore(...),  null   , $chunkSize, $orEnd); }
-  function readUntilEnd (                                  ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilEnd (...),  null   , $chunkSize, $orEnd); }
-  function readUntilStr(string $str  ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilStr($str), $include, $chunkSize, $orEnd); }
-  function readUntilReg(string $reg  ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilReg($reg), $include, $chunkSize, $orEnd); }
-  function readLine(string $end="\n" ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntilStr(            $end , $include, $chunkSize, $orEnd); }
-  
+  function readLine(string $end="\n", ?bool $include=null) { return $this->until()->str($end)->include($include)->read(); }
+
   function readList($args): array|string
   {
     $res = [];

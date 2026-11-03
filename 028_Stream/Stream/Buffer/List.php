@@ -1,6 +1,6 @@
 <?
 class Stream_Buffer_List extends Stream_Buffer_Base
-{
+{ //TODO: Optimize make List to be hot 
   private array $list   =[];
   private int   $offset =0;
   private int   $size   =0;

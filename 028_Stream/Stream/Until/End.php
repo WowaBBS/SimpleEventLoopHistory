@@ -1,19 +1,9 @@
 <?
 class Stream_Until_End extends Stream_Until_Base
 {
-  function __construct(
-    ?int    $chunkSize =null,
-     bool   $orEnd     =true,
-    ?int    $limit     =null,
-  )
-  {
-    parent::__construct(
-      include   :  null      ,
-      chunkSize : $chunkSize ,
-      orEnd     : $orEnd     ,
-      limit     : $limit     ,
-    );
-  }
+//TODO: Error
+  function orEnd     ( bool $v =true) { return $this; }
+  function include   (?bool $v =null) { return $this; }
   
   function onUntil($data, $offset): false|array
   {

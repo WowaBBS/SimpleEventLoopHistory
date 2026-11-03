@@ -3,21 +3,10 @@ class Stream_Until_Pattern extends Stream_Until_Base
 {
   public string $pattern='';
   
-  function __construct(
-     string $pattern   ,
-    ?bool   $include   =null,
-    ?int    $chunkSize =null,
-     bool   $orEnd     =true,
-    ?int    $limit     =null,
-  )
+  function __construct($reader, string $pattern)
   {
+    parent::__construct($reader);
     $this->pattern = $pattern;
-    parent::__construct(
-      $include   ,
-      $chunkSize ,
-      $orEnd     ,
-      $limit     ,
-    );
   }
   
   function onUntil($data, $offset): false|array

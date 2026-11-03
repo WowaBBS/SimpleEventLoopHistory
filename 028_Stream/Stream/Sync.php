@@ -31,12 +31,8 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
   function read(...$args):array|string { return $this->reader->readList($args); }
   function readData(int $size): string { return $this->reader->readData($args); }
   
-  function readUntil    (callable $until  ,                     ?int $chunkSize=null, bool $orEnd=true) { return $this->reader->readUntil    ($until ,          $chunkSize, $orEnd); }
-  function readUntilStr (string $str      ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->reader->readUntilStr ($str   ,$include, $chunkSize, $orEnd); }
-  function readUntilReg (string $reg      ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->reader->readUntilReg ($reg   ,$include, $chunkSize, $orEnd); }
-  function readUntilMore(                                       ?int $chunkSize=null, bool $orEnd=true) { return $this->reader->readUntilMore(                  $chunkSize, $orEnd); }
-  function readUntilEnd (                                       ?int $chunkSize=null, bool $orEnd=true) { return $this->reader->readUntilEnd (                  $chunkSize, $orEnd); }
-  function readLine     (string $end="\n" ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->reader->readLine     ($end   ,$include, $chunkSize, $orEnd); }
+  function until() { return $this->reader->until(); }
+  function readLine(string $end="\n", ?bool $include=null) { return $this->reader->readLine($end, include:$include); }
 
 //****************************************************************
 // Life time

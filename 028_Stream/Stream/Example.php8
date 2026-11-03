@@ -176,7 +176,7 @@ Loop::async
     $istream->writeEnd();
   });
   Loop::async(function() use($ostream, $example){
-    $result = $ostream->readUntilEnd();
+    $result = $ostream->until()->end()->read();
     
     if ($result === $example) return Logger::log('Ok');
     
