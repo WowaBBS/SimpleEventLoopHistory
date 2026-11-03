@@ -1,7 +1,7 @@
 <?
 include '../_All.Cli.php';
 
-Loop::async
+//Loop::async
 (function(){
   $stream = new Stream_Async_Mock()->syncStream();
 
@@ -51,4 +51,5 @@ Loop::async
   //TODO: $stream->abort();
   }
   
-});//();  
+})();
+//});

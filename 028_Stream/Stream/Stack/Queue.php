@@ -1,6 +1,6 @@
 <?
 class Stream_Stack_Queue extends Stream_Stack_Base
-{
+{ //TODO: Two SplDoublyLinkedList?
   /** @var array Стек активных задач чтения (LIFO) */
   private array $stack   = [];
   private int   $current = 0;
@@ -14,7 +14,7 @@ class Stream_Stack_Queue extends Stream_Stack_Base
   function has(): bool { return (bool)$this->stack; }
   function isEmpty(): bool { return count($this->stack) == 0; }
   
-  function add(callable $handler, $deferred = null):void
+  function add(callable $handler, ?Deferred $deferred = null):void
   {
     if (!$this->stack && $this->current !== 0)
     {

@@ -12,7 +12,7 @@ class Stream_Stack_Tree extends Stream_Stack_Base
   function has(): bool { return (bool)$this->current; }
   function isEmpty(): bool { return $this->current == null; }
   
-  function add(callable $handler, $callback = null):void
+  function add(callable $handler, ?Deferred $callback = null): void
   {
     new Stream_Handler($handler, $callback)->addTo($this->current);
   }

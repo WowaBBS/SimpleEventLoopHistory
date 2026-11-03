@@ -17,7 +17,7 @@ abstract class Stream_IO_Base implements IStream_IO, IDebug_Leak_Object
   }
   
   static string $Stack_Class=Stream_Stack_Simple ::class;
-//static string $Stack_Class=Stream_Stack_List   ::class;
+//static string $Stack_Class=Stream_Stack_Queue  ::class;
 //static string $Stack_Class=Stream_Stack_Tree   ::class;
   
   private IStream_Stack $stack { get=>$this->stack ??= self::createDefaulStack(); }

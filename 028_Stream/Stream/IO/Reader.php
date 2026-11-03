@@ -35,7 +35,7 @@ class Stream_IO_Reader extends Stream_IO_Base
     $this->execute();
   }
   
-  function onEnd() { $this->isFinished = true; }
+  function onEnd() { $this->isStreamEnd = true; }
 
   /** Уведомить стрим, сколько байт из буфера было успешно прочитано (потреблено) */
   function consume(int $bytes): void
@@ -84,9 +84,9 @@ class Stream_IO_Reader extends Stream_IO_Base
 //****************************************************************
 // sync
 
-  private bool $isFinished = false;
-  private function isStreamFinished():bool { return $this->isFinished; }
-  private function isFinished():bool { return $this->isStreamFinished() && !$this->buffer->has(); }
+  private bool $isStreamEnd = false;
+  private function isStreamEnd():bool { return $this->isStreamEnd; }
+  public  function isEnd():bool { $this->readUntilMore(); return $this->isStreamEnd() && !$this->buffer->has(); }
 
   function asyncRead(int $size): Promise
   {
@@ -111,6 +111,9 @@ class Stream_IO_Reader extends Stream_IO_Base
     return $promise->await();
   }
 
+  static function untilMore($data, $offset) { return strlen($data)>$offset? [0, '']:false; }
+  static function untilEnd($data, $offset) { return false; }
+  
   static function untilStr($end)
   {
     return fn($data, $offset)=>($res = strpos($data, $end, $offset)) !== false? [$res-$offset, $end]:false;
@@ -129,14 +132,14 @@ class Stream_IO_Reader extends Stream_IO_Base
       if ($result !== false)
         return $result;
       
-      if (!$reader->isStreamFinished())
+      if (!$reader->isStreamEnd())
       {
         $this->require(1, $chunkSize);
         return false;
       }
       
       if ($orEnd)
-        return $reader->readAll();
+        return $reader->buffer->readAll();
       
       throw new Stream_Exception_End();
     };
@@ -150,6 +153,8 @@ class Stream_IO_Reader extends Stream_IO_Base
     return $promise->await();
   }
   
+  function readUntilMore(                                  ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilMore(...),  null   , $chunkSize, $orEnd); }
+  function readUntilEnd (                                  ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilEnd (...),  null   , $chunkSize, $orEnd); }
   function readUntilStr(string $str  ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilStr($str), $include, $chunkSize, $orEnd); }
   function readUntilReg(string $reg  ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntil(self::untilReg($reg), $include, $chunkSize, $orEnd); }
   function readLine(string $end="\n" ,?bool $include=null, ?int $chunkSize=null, bool $orEnd=true) { return $this->readUntilStr(            $end , $include, $chunkSize, $orEnd); }
@@ -161,7 +166,7 @@ class Stream_IO_Reader extends Stream_IO_Base
       switch (gettype($arg))
       {
       case 'double':
-        Logger::Warning('Reading float size is not a good sign')->backtrace();
+        Logger::warning('Reading float size is not a good sign')->backtrace();
         $arg = @(int)$arg;
       case 'integer':
         $res[] = $this->readData($arg);

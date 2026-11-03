@@ -1,10 +1,10 @@
 <?
 include '../_All.Cli.php';
 
-class Header
+class Header //implements IStream_Struct
 {
   var $key   ;
-  var $vaule ;
+  var $value ;
   
   function __construct(string $line='')
   {
@@ -20,24 +20,28 @@ class Header
 //...
 //HeaderN
 //EmptyHeader
-class Headers
+class Headers //implements IStream_Struct
 {
   var $first ; //First line
-  var $list  ; //Header[]
+  var $list  =[]; //Header[]
   
   function read(IStream $s)
   {
-    $first = $s->readLine();
-    while (strlen($line = $s->readLine()))
+    $this->first = $s->readLine("\r\n");
+    while (strlen($line = $s->readLine("\r\n")))
       $this->list[] = new Header($line);
   }
 
   function write(IStream $s)
   {
-    $s->write(
+  /*$s->write(
       $this->first ,"\r\n" ,
       $this->list  ,"\r\n" ,
-    );
+    );*/
+    $s->write($this->first, "\r\n");
+    foreach ($this->list as $item)
+      $s->write($item);
+    $s->write("\r\n");
   }
 }
 
@@ -45,22 +49,93 @@ class Headers
 // Line1
 // ...
 // LineN
-class Chunk
+class Chunk //implements IStream_Struct
 {
-  var $List;
+  var $list = [];
+  
+  function __construct($list) { $this->list = $list; }
+
+  static function read(IStream $s)
+  {
+    $count = (int)$s->readLine("\r\n");
+    if (!$count) return null;
+    
+    $list = [];
+    for (; $count>0; $count--)
+      $list[] = $s->readLine("\r\n");
+    
+    return new Chunk($list);
+  }
+
+  function write(IStream $s)
+  {
+    $s->write((string)count($this->list), "\r\n");
+    foreach ($this->list as $item)
+      $s->write($item, "\r\n");
+  }
 }
 
-class Request
+class Request //implements IStream_Struct
 {
-  var $Headers ;
-  var $Chunks  ;
+  var $headers ;
+  var $chunks  =[];
+  
+  function __construct()
+  {
+    $this->headers = new Headers ();
+  }
+
+  function read(IStream $s)
+  {
+  /*$s->read(
+      $this->headers,
+      $this->chunks
+    );*/
+             
+    $this->headers ->read($s);
+    
+    while ($chunk = Chunk::read($s))
+      $this->chunks[] = $chunk;
+  }
+
+  function write(IStream $s)
+  {
+  /*$s->write(
+      $this->headers,
+      $this->chunks
+    );*/
+             
+    $this->headers ->write($s);
+    foreach ($this->chunks as $chunk)
+      $chunk->write($s);
+    $s->write((string)0, "\r\n");
+  }
 }
 
-class Requests
+class Requests //implements IStream_Struct
 {
-  var $List  ;
+  var $list  ;
+
+  function read(IStream $s)
+  {
+  //$s->repeatUntilEnd(Request::class);?
+    while(!$s->isEnd())
+    {
+      $item = new Request();
+      $item->read($s);
+      $this->list[] = $item;
+    }
+  }
+
+  function write(IStream $s)
+  {
+  //$s->write($this->list);
+    foreach ($this->list as $item)
+      $item->write($s);
+  }
 }
 
+Loop::async
 (function(){
   $example = <<<HereDoc
     Request1.FirstLine
@@ -88,22 +163,34 @@ class Requests
     Chunk2.Line2
     Chunk2.Line3
     0
+    
     HereDoc;
   
-  $example=Str_Replace("\n", "\r\n", $example);
+  $example = Str_Replace("\n", "\r\n", $example);
   
-  $istream = new Stream_Async_Mock($example)->syncStream();
+  $istream = new Stream_Async_Mock()->syncStream();
   $ostream = new Stream_Async_Mock()->syncStream();
   
+  Loop::async(function() use($istream, $example){
+    $istream->write($example);
+    $istream->writeEnd();
+  });
+  Loop::async(function() use($ostream, $example){
+    $result = $ostream->readUntilEnd();
+    
+    if ($result === $example) return Logger::log('Ok');
+    
+    $result  = Str_Replace("\r\n", "\n", $result  );
+    $example = Str_Replace("\r\n", "\n", $example );
+    
+    Logger::error('Failed:')->Dump([$result, $example]);//($result);
+  });
+  
   $requests = new Requests();
-  $istream->read  ($requests);
-  $ostream->write ($requests);
-  
-  $result = (string)$ostream;
-  
-  if ($result !== $example)
-    Logger::error('Failed:')($result);
-  else
-    Logger::log('Ok');
-  
-})();  
+/*$istream->read  ($requests);
+  $ostream->write ($requests);*/
+  $requests->read  ($istream);
+  $requests->write ($ostream);  
+  $ostream->writeEnd();
+});
+//();  

@@ -14,7 +14,7 @@ class Stream_Stack_Simple extends Stream_Stack_Base
   function has(): bool { return (bool)$this->handler; }
   function isEmpty(): bool { return !$this->handler; }
   
-  function add(callable $handler, $deferred = null):void
+  function add(callable $handler, ?Deferred $deferred = null):void
   {
     if ($this->handler)
       throw new LogicException('handler has already exists');

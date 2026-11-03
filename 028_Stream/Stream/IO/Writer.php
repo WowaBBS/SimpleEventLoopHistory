@@ -61,7 +61,7 @@ class Stream_IO_Writer extends Stream_IO_Base
       {
       case 'integer':
       case 'double':
-        Logger::Warning('Writting numeric is not good')->backtrace();
+        Logger::warning('Writting numeric is not good')->backtrace();
         $arg = @(string)$arg;
       case 'string':
         $res += $this->writeData($arg);

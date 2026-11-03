@@ -32,7 +32,7 @@ class Stream_Async_LoopBack extends Stream_Async_Base
     return $result;
   }
   
-  function isRecvEnd(): bool { return $this->isEnd && $this->hasDataToRecv(); }
+  function isRecvEnd(): bool { return $this->isEnd && !$this->hasDataToRecv(); }
   
   function isReading(): bool { return (bool)$this->onRecv; }
   
