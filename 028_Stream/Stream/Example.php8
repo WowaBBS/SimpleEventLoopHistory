@@ -27,8 +27,8 @@ class Headers //implements IStream_Struct
   
   function read(IStream $s)
   {
-    $this->first = $s->readLine("\r\n");
-    while (strlen($line = $s->readLine("\r\n")))
+    $this->first = $s->readLine("\r\n", strict: true);
+    while (strlen($line = $s->readLine("\r\n", strict: true)))
       $this->list[] = new Header($line);
   }
 
@@ -57,12 +57,12 @@ class Chunk //implements IStream_Struct
 
   static function read(IStream $s)
   {
-    $count = (int)$s->readLine("\r\n");
+    $count = (int)$s->readLine("\r\n", strict: true);
     if (!$count) return null;
     
     $list = [];
     for (; $count>0; $count--)
-      $list[] = $s->readLine("\r\n");
+      $list[] = $s->readLine("\r\n", strict: true);
     
     return new Chunk($list);
   }
@@ -119,7 +119,7 @@ class Requests //implements IStream_Struct
   function read(IStream $s)
   {
   //$s->repeatUntilEnd(Request::class);?
-    while(!$s->isEnd())
+    while ($s->waitMore())
     {
       $item = new Request();
       $item->read($s);

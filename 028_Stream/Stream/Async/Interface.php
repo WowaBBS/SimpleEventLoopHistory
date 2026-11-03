@@ -4,34 +4,24 @@ interface IStream_Async
 //****************************************************************
 // Read
 
-  // Проверка, есть ли данные для чтения
-//function hasDataToRecv(): bool;
-  // Сколько осталось? если у внутренний буфера
-//function restRecvSize(): int;
-  // Чтение данных из потока
-  function recv(int $maxSize): ?string;
-  // Проверка, закрыт ли поток для чтения
-  function isRecvEnd(): bool;
-  // Подписаться на событие при успешном чтении
-  function resumeRecv(callable $callback): void;
-  // Отписаться от события
-  function pauseRecv(): void;
+  function recv       (int      $maxSize  ): ?string; // Чтение данных из потока
+  function isRecvEnd  (                   ): bool; // Проверка, закрыт ли поток для чтения
+  function resumeRecv (callable $callback ): void; // Подписаться на событие при успешном чтении
+  function pauseRecv  (                   ): void;  // Отписаться от события
+
+//function hasDataToRecv (): bool ; // Проверка, есть ли данные для чтения
+//function restRecvSize  (): int  ; // Сколько осталось? если у внутренний буфера
 
 //****************************************************************
 // Send
 
-//function canSendSize(): int;
-  // Проверка, свободен ли поток для записи
-//function canSend(): bool;
-  // Запись данных в поток
-  function send(string $data): false|int;
+  function send       (string   $data    ): false|int; // Запись данных в поток
+  function sendEnd    (                  ): void; // Закрыть поток для записи
+  function resumeSend (callable $callback): void; // Подписаться на событие при успешной записи
+  function pauseSend  (                  ): void; // Отписаться от события
 
-  // Закрыть поток для записи
-  function sendEnd(): void;
-  // Подписаться на событие при успешной записи
-  function resumeSend(callable $callback): void;
-  // Отписаться от события
-  function pauseSend(): void;
+//function canSendSize (): int;
+//function canSend     (): bool; // Проверка, свободен ли поток для записи
 
 //****************************************************************
 // Time life

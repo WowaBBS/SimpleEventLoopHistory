@@ -8,7 +8,7 @@ abstract class Stream_Until_Base
   public ?int  $limit     =null;
   
 //Result arguments
-  public  bool $orEnd     =true;
+  public  bool $strict    =false;
   public ?bool $include   =null;
   
   function __construct($reader)
@@ -18,7 +18,7 @@ abstract class Stream_Until_Base
 
   function chunkSize (?int  $v =null) { $this->chunkSize =$v; return $this; }
   function limit     (?int  $v =null) { $this->limit     =$v; return $this; }
-  function orEnd     ( bool $v =true) { $this->orEnd     =$v; return $this; }
+  function strict    ( bool $v =true) { $this->strict    =$v; return $this; }
   function include   (?bool $v =null) { $this->include   =$v; return $this; }
   
   abstract function onUntil($data, $offset): false|array;
@@ -35,7 +35,7 @@ abstract class Stream_Until_Base
       return false;
     }
     
-    if ($this->orEnd)
+    if (!$this->strict)
       return $reader->buffer_readAll();
     
     throw new Stream_Exception_End();

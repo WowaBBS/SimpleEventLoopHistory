@@ -93,15 +93,25 @@ class Stream_IO_Reader extends Stream_IO_Base
 
   private bool $isStreamEnd = false;
   public  function isStreamEnd():bool { return $this->isStreamEnd; } //TODO: private
-  public  function isEnd():bool { $this->until()->more()->read(); return $this->isStreamEnd() && !$this->buffer->has(); }
+  
+  protected function isEnd():bool { return $this->isStreamEnd() && !$this->buffer->has(); }
+  
+  public function waitMore():bool { $this->until()->more()->read(); return !$this->isEnd(); }
 
-  function asyncRead(int $size): Promise
+  function asyncRead(int $size, ?int $min=null): Promise
   {
     $this->require($size, $size);
     
-    $func = function($reader) use($size) {
+    $func = function($reader) use($size, $min) {
       if ($reader->buffer->restSize() >= $size)
         return $reader->buffer->read($size);
+      if ($min !== null && $this->buffer->restSize() >= $min)
+        return $this->buffer_readAll();
+    
+      if ($this->isStreamEnd())
+        throw new Stream_Exception_End();
+      
+      // timeout?
       Logger::error('Expected size is ', $size, ', but actual is ', $reader->buffer)->throw();
     };
     
@@ -109,18 +119,41 @@ class Stream_IO_Reader extends Stream_IO_Base
     return $promise;
   }
   
-  function readData(int $size): string
+  function readData(int $size, ?int $min=null): string
   {
     if ($this->buffer->restSize() >= $size)
       return $this->buffer->read($size);
+    if ($this->isStreamEnd()) //Or timeout?
+      if ($min !== null && $this->buffer->restSize() >= $min)
+        return $this->buffer_readAll();
+      else
+        throw new Stream_Exception_End();
     
-    $promise = $this->asyncRead($size);
+    $promise = $this->asyncRead($size, $min);
     return $promise->await();
   }
+  
+  function peek(int $min=1, ?int $max=null): string
+  { //TODO: Optimize
+    $result = $this->readData($min);
+    $this->unread($result);
+    return $result;
+  }
+  
+  function unread(string $data, bool $new=false): void
+  {
+    $this->buffer->unread($data, $new); //TODO: new;
+  }
 
+  function skip(int $size): void
+  { //TODO: Optimize
+    while ($size > 0)
+      $size -= strlen($this->read(min($this->chunksize, $size)));
+  }
+  
   function until(): Stream_Until_Factory { return new Stream_Until_Factory($this); }
 
-  function readLine(string $end="\n", ?bool $include=null) { return $this->until()->str($end)->include($include)->read(); }
+  function readLine(string $end="\n", bool $strict=false) { return $this->until()->str($end)->strict($strict)->read(); }
 
   function readList($args): array|string
   {
