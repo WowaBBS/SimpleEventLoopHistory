@@ -6,7 +6,7 @@ class Stream_Schema_Struct extends Stream_Schema_Node
   public function __construct(array $fields)
   {
     foreach ($fields as $key => &$node)
-      $node = Stream_Schema_Context::normalize($node);
+      $node = Stream_Schema_Factory::get($node);
     
     $this->fields = $fields;
   }

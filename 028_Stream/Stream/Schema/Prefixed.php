@@ -5,13 +5,14 @@ class Stream_Schema_Prefixed extends Stream_Schema_Node
 
   private static array $cache = [];
   static function get(string $format):self { return self::$cache[$format] ??= new self($format); }
-  static function lookup(string $format):?self
+  static function try(string $format):?self
   {
     // Проверяем паттерн "Префиксный тип" (Паттерн 1: p:u16b)
     if (!str_starts_with($format, 'p:')) return null;
     
     $parts = explode(':', $format, 2); // ['p', 'u16b']
-    return Stream_Schema_Type::has($parts[1])? self::get($parts[1]):null;
+    if (!Stream_Schema_Type::has($parts[1])) return null;
+    return self::get($parts[1]);
   }
   
   public function __construct(string $lengthFormat)

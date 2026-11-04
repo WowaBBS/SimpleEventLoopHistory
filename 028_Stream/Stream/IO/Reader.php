@@ -169,7 +169,7 @@ class Stream_IO_Reader extends Stream_IO_Base
     $arg = count($args) === 1 ? $args[0] : $args;
     if (is_callable ($arg)) return $arg($this);
     // РЕШЕНИЕ: Если пришел массив-карта, отдаем его в хелпер, передавая сам стрим
-    if (is_array    ($arg)) return $this->schema(Stream_Schema_Context::normalize($arg));
+    if (is_array    ($arg)) return $this->schema(Stream_Schema_Factory::create($arg));
     if ($arg instanceof IStream_Codec) return $this->schema($arg)->read();
     
     throw new \InvalidArgumentException('Unallowed read type '. gettype($arg));

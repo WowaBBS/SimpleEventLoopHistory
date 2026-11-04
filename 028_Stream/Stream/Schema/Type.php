@@ -32,9 +32,8 @@ class Stream_Schema_Type extends Stream_Schema_Node
   ];
   
   private static array $cache = [];
-  
   static function get(string $format):self { return self::$cache[$format] ??= new self($format); }
-  static function lookup(string $format):?self { return self::has($format)? self::get($format):null; }
+  static function try(string $format):?self { return self::has($format)? self::get($format):null; }
   static function has(string $format):bool { return isset(self::FORMATS[$format]); }
 
   public function __construct(private string $format)
