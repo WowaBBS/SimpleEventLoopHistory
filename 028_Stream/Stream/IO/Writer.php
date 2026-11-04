@@ -43,7 +43,7 @@ class Stream_IO_Writer extends Stream_IO_Base
     return $promise->await();
   }
   
-  function writeEnd()
+  function writeEnd(): void
   {
     $this->stream->sendEnd();
   }
@@ -86,14 +86,22 @@ class Stream_IO_Writer extends Stream_IO_Base
     return $res;
   }
   
-  /**
-   * Записывает декларативную бинарную структуру в поток, используя хелпер
-   */
-  function writeStructure(array $formatMap, array $data): int
-  {
-    return Stream_Helper_Binary::packStructure($this, $formatMap, $data);
-  }
-  
+//****************************************************************
+// Unused
+
+  function waitData (                               ): bool   { return Unknown(           ); }
+  function waitMore (                               ): bool   { return Unknown(           ); }
+  function readData (int    $size  ,?int $min=null  ): string { return Unknown($size ,$min); }
+  function peek     (int    $min=1 ,?int $max=null  ): string { return Unknown($min  ,$max); }
+  function unread   (string $data  ,bool $new=false ): void   {        Unknown($data ,$new); }
+  function skip     (int    $size                   ): void   {        Unknown($size      ); }
+  function read     (...$args                  ):array|string { return Unknown(...$args   ); }
+  function until    (                               )         { return Unknown(           ); }
+  function readLine (string $till="\n", bool $strict=false)   { return Unknown($till      ); }
+
+  function schema(IStream_Codec $schema): Stream_Schema_Context { return new Stream_Schema_Context($this, $schema); }  
+  function close() {} //TODO:
+
 //****************************************************************
 
 }

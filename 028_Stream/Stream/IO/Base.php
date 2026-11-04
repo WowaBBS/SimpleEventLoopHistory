@@ -50,7 +50,7 @@ abstract class Stream_IO_Base implements IStream_IO, IDebug_Leak_Object
 
   /**
    * Поставить задачу на чтение/запись в стек.
-   * @param callable $readFunc Функция чтения: fn(Pipeline_Stream_Reader $r, string $buf): bool
+   * @param callable $readFunc Функция чтения: fn(Stream_Reader $r, string $buf): bool
    * @param callable|null $callback Колбэк завершения: fn(?\Throwable $error)
    */
   function asyncTask(callable $ioFunc):Promise
@@ -62,7 +62,7 @@ abstract class Stream_IO_Base implements IStream_IO, IDebug_Leak_Object
   
   /**
    * Поставить задачу на чтение/запись в стек.
-   * @param callable $readFunc Функция чтения: fn(Pipeline_Stream_Reader $r, string $buf): bool
+   * @param callable $readFunc Функция чтения: fn(Stream_Reader $r, string $buf): bool
    * @param callable|null $callback Колбэк завершения: fn(?\Throwable $error)
    */
   function addTask(callable $ioFunc): void

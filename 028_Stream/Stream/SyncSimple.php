@@ -13,14 +13,6 @@ class Stream_SyncSimple implements IStream
 //****************************************************************
 // --- СЕКЦИЯ ЗАПИСИ (WRITE) ---
 
-  /**
-   * Записывает декларативную бинарную структуру в поток, используя хелпер
-   */
-  public function writeStructure(array $formatMap, array $data): int
-  {
-    return Stream_Helper_Binary::packStructure($this, $formatMap, $data);
-  }
-  
   public function write(...$args): int 
   {
     $totalWritten = 0;
@@ -184,11 +176,6 @@ class Stream_SyncSimple implements IStream
 
   function until(): Stream_Until_Factory { return new Stream_Until_Factory($this); }
   
-  public function close(): void
-  {
-    $this->readBuffer = '';
-    $this->stream->close();
-  }
 //****************************************************************
 // TODO: Optimize
 
@@ -231,5 +218,15 @@ class Stream_SyncSimple implements IStream
     return $result;
   }
 
+//****************************************************************
+// Others
+
+  function schema(IStream_Codec $schema): Stream_Schema_Context { return new Stream_Schema_Context($this, $schema); }
+
+  public function close(): void
+  {
+    $this->readBuffer = '';
+    $this->stream->close();
+  }
 //****************************************************************
 }

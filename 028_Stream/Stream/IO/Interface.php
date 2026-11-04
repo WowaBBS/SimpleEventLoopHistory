@@ -1,5 +1,5 @@
 <?
-interface IStream_IO
+interface IStream_IO extends IStream
 {
 /*
 */

@@ -23,14 +23,13 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
   function write     (    ...$args): int  { return $this->writer->write     (...$args); }
   function writeData (string $data): int  { return $this->writer->writeData (   $data); }
   function writeEnd  (            ): void {        $this->writer->writeEnd  (        ); }
-  function writeStructure(array $formatMap, array $data): int { return $this->writer->writeStructure($formatMap, $data); }
   
 //****************************************************************
 // Read
 
   function waitData (                               ): bool   { return $this->reader->waitData (           ); }
   function waitMore (                               ): bool   { return $this->reader->waitMore (           ); }
-  function readData (int    $size  ,?int $min=null  ): string { return $this->reader->readData ($args ,$min); }
+  function readData (int    $size  ,?int $min=null  ): string { return $this->reader->readData ($size ,$min); }
   function peek     (int    $min=1 ,?int $max=null  ): string { return $this->reader->peek     ($min  ,$max); }
   function unread   (string $data  ,bool $new=false ): void   {        $this->reader->unread   ($data ,$new); }
   function skip     (int    $size                   ): void   {        $this->reader->skip     ($size      ); }
@@ -39,6 +38,8 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
   function readLine (string $till="\n", bool $strict=false)   { return $this->reader->readLine ($till ,strict: $strict); }
 
 //****************************************************************
-// Life time
+// Others
+
+  function schema(IStream_Codec $schema): Stream_Schema_Context { return new Stream_Schema_Context($this, $schema); }  
   function close() {} //TODO:
 }

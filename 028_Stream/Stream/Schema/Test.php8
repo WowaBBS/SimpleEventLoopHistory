@@ -1,6 +1,11 @@
 <?php
 include '../../_All.Cli.php';
 
+// Удобные глобальные функции-фабрики (сахар для красивой декларации мапы)
+function type     (string $fmt    ): Stream_Schema_Type     { return Stream_Schema_Type     ::get($fmt    ); }
+function prefixed (string $lenFmt ): Stream_Schema_Prefixed { return Stream_Schema_Prefixed ::get($lenFmt ); }
+function struct   (array  $fields ): Stream_Schema_Struct   { return new Stream_Schema_Struct    ($fields ); }
+
 Loop::async(function() {
   Logger::logAsync('[Test] Initializing a binary Loopback test...');
 
@@ -9,26 +14,27 @@ Loop::async(function() {
   $stream = $asyncLoopback->syncStream();
 
   // --- ЕДИНАЯ ДЕКЛАРАТИВНАЯ КАРТА ПРОТОКОЛА ---
-  $packetSchema = [
-    'magic_marker' => 'u8',
+  $packetSchema = Stream_Schema_Context::normalize([
+    'magic_marker' => type('u8'),
     'status_code'  => 'i16b', // Проверим отрицательное число в Big-Endian
     'velocity'     => 'i32l', // Проверим отрицательное число в Little-Endian
 
     // Паттерн 1 (Префиксный тип): Говорим, что это строка, 
     // длина которой запишется/прочитается как 32-битный Big-Endian инт
-    'payload'      => 'p:u32b', 
+  //'payload'      => 'p:u32b', 
+    'payload'      => prefixed('u32b'),
     
-    'vectors'      => [
+    'vectors'      => struct([
       'alpha' => 'f32l',
       'beta'  => 'f64b'
-    ],
+    ]),
     
     // Паттерн 3 (Если нужно кастомное хитрое поле, пример кодек-пары)
-    'custom_checksum' => [
-      'read'  => fn($s) => $s->readData(2),
-      'write' => fn($s, $val) => $stream->writeData(str_pad((string)$val, 2, "0"))
-    ]
-  ];
+    'checksum' => new Stream_Schema_Custom(
+      fn($s) => $s->readData(2),
+      fn($s, $val) => $stream->writeData(str_pad((string)$val, 2, "0"))
+    ),
+  ]);
 
 
   // Данные для отправки
@@ -41,19 +47,20 @@ Loop::async(function() {
       'alpha' => 3.14159,
       'beta'  => 2.718281828459
     ],
-    'custom_checksum' => 'XY',
+    'checksum' => 'XY',
   ];
 
   Logger::logAsync('[Test] Packing and writing a structure to a loopback stream...');
 
   // Записываем структуру одной командой
-  $bytesWritten = $stream->writeStructure($packetSchema, $originalData);
+  $bytesWritten = $stream->schema($packetSchema)->write($originalData);
   Logger::logAsync("[Test] Successfully wrote $bytesWritten bytes.");
 
   Logger::logAsync('[Test] Reading and deserializing a structure from a stream...');
 
   // Читаем структуру из этого же стрима
-  $parsedData = $stream->read($packetSchema);
+  $parsedData = $stream->read($packetSchema); // The same
+  $parsedData = $stream->schema($packetSchema)->read();
 
   Logger::logAsync('[Test] Verification of the obtained results:');
 

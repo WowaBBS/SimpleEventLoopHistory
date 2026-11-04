@@ -22,7 +22,9 @@ interface IStream
   function until    (                              )         ;
 
 //****************************************************************
-// Time life
+// Others
+
+  function schema(IStream_Codec $schema): Stream_Schema_Context;
 
   function close();
 }
