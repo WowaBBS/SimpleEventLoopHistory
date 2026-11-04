@@ -12,6 +12,14 @@ class Stream_SyncSimple implements IStream
 
   // --- СЕКЦИЯ ЗАПИСИ (WRITE) ---
 
+  /**
+   * Записывает декларативную бинарную структуру в поток, используя хелпер
+   */
+  public function writeStructure(array $formatMap, array $data): int
+  {
+    return Stream_Helper_Binary::packStructure($this, $formatMap, $data);
+  }
+  
   public function write(...$args): int 
   {
     $totalWritten = 0;
@@ -41,8 +49,8 @@ class Stream_SyncSimple implements IStream
         if ($currentFiber === null)
           throw new \LogicException("Запись в заблокированный поток возможна только внутри Fiber.");
 
-        $this->stream->resumeSend(function() use ($currentFiber) {
-          $this->stream->pauseSend();
+        $this->stream->resumeSend(function($stream) use ($currentFiber) {
+          $stream->pauseSend();
           if (!$currentFiber->isTerminated() && $currentFiber->isSuspended())
             $currentFiber->resume();
         });
@@ -163,8 +171,13 @@ class Stream_SyncSimple implements IStream
   public function read(...$args): array|string
   {
     if (empty($args)) return $this->readData(1, 0);
+    if (is_int($args[0])) return $this->readData((int)$args[0], $args[1] ?? null); //Check count 2
+    $arg = count($args) === 1 ? $args[0] : $args;
+    if (is_callable($arg)) return $arg($this);
+    // РЕШЕНИЕ: Если пришел массив-карта, отдаем его в хелпер, передавая сам стрим
+    if (is_array($arg)) return Stream_Helper_Binary::parseStructure($this, $arg);
     
-    return $this->readData((int)$args[0], $args[1] ?? null);
+    throw new \InvalidArgumentException("Неподдерживаемый тип аргумента в методе read().");
   }
 
   function until(): Stream_Until_Factory { return new Stream_Until_Factory($this); }

@@ -12,11 +12,10 @@ abstract class Stream_Async_Base implements IStream_Async, IDebug_Leak_Object
     $this->sendCallback = null;
   }
 
+//****************************************************************
+// Recv
   /** @var callable|null Колбэк на чтение данных */
   private $recvCallback = null;
-
-  /** @var callable|null Колбэк на готовность к записи */
-  private $sendCallback = null;
 
   function isReading(): bool { return (bool)$this->recvCallback; }
 
@@ -59,6 +58,11 @@ abstract class Stream_Async_Base implements IStream_Async, IDebug_Leak_Object
 
   abstract protected function startRecv(bool $enable);
   
+//****************************************************************
+// Send
+
+  /** @var callable|null Колбэк на готовность к записи */
+  private $sendCallback = null;
 
   function isWriting(): bool { return (bool)$this->sendCallback; }
 
@@ -97,6 +101,61 @@ abstract class Stream_Async_Base implements IStream_Async, IDebug_Leak_Object
 
   abstract function startSend(bool $enable);
 
+//****************************************************************
+
+  /**
+   * Асинхронная неблокирующая запись
+   *   с честным Backpressure
+   *   с мягкой обработкой обрыва соединения
+   */
+  function write(string $data): bool
+  { //TODO: remove?
+    $length    = strlen($data);
+    $written   = 0;
+
+    while ($written < $length)
+    {
+      if (!$this->isValid()) //TODO: ???
+        return false; // Сокет уже закрыт
+      //throw new \RuntimeException("Attempt to write to a closed socket #{$this->id}");
+
+      // Пытаемся записать оставшийся кусок данных
+      $chunk  = substr($data, $written);
+      $result = $this->send($chunk);
+
+      // ШТАТНАЯ ОПЕРАЦИЯ: клиент разорвал соединение посередине отправки.
+      // Вместо RuntimeException возвращаем false для мягкого выхода из циклов.
+      if ($result === false)
+        if ($this->isSendEnd)
+          return false;
+        else
+          continue;
+          
+      $written += $result;
+      
+      if ($result !== false)
+        continue;
+      
+      // Логика ожидания Writable буфера ОС через Fiber::suspend()
+      $currentFiber = \Fiber::getCurrent();
+      if ($currentFiber === null)
+        throw new \LogicException('Method write can only be called from within a fiber.');
+
+      $this->resumeSend(function($stream) use ($currentFiber) {
+        $stream->pauseSend();
+        // Как только сокет готов принимать байты - убираем его из отслеживания записи и будим файбер
+        if (!$currentFiber->isTerminated() && $currentFiber->isSuspended())
+          $currentFiber->resume();
+      });
+
+      // Ставим текущий файбер на паузу
+      \Fiber::suspend();
+    }
+    return true;
+  }
+
+  function isValid(): bool { return true; }
+  
   function close()
   {
     $this->recvCallback = null;

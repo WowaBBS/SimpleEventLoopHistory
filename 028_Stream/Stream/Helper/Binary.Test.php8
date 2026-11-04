@@ -1,0 +1,91 @@
+<?php
+include '../../_All.Cli.php';
+
+Loop::async(function() {
+  Logger::logAsync('[Test] Initializing a binary Loopback test...');
+
+  // 1. Создаем асинхронный loopback и оборачиваем его в наш синхронный стрим
+  $asyncLoopback = new Stream_Async_LoopBack();
+  $stream = $asyncLoopback->syncStream();
+
+  // 2. Объявляем карту записи (Форматировщик)
+  // payload_len посчитается автоматически, magic_marker и координаты - жесткие типы
+  $writeMap = [
+    'magic_marker' => 'u8',
+    'status_code'  => 'i16b', // Проверим отрицательное число в Big-Endian
+    'velocity'     => 'i32l', // Проверим отрицательное число в Little-Endian
+    'payload_len'  => fn(array $data) => pack('N', strlen($data['payload'])), // u32b авто-длина
+    'payload'      => fn(IStream $s, string $val) => $s->writeData($val),   // Сырая строка
+    'vectors'      => [
+      'alpha' => 'f32l', // Дробное float
+      'beta'  => 'f64b'  // Дробное double в Big-Endian
+    ]
+  ];
+
+  // Данные для отправки
+  $originalData = [
+    'magic_marker' => 0xAF,
+    'status_code'  => -500,  // Отрицательное 16-бит
+    'velocity'     => -100500, // Отрицательное 32-бит
+    'payload'      => 'Hello from the asynchronous binary codec!',
+    'vectors'      => [
+      'alpha' => 3.14159,
+      'beta'  => 2.718281828459
+    ]
+  ];
+
+  Logger::logAsync('[Test] Packing and writing a structure to a loopback stream...');
+
+  // Записываем структуру одной командой
+  $bytesWritten = $stream->writeStructure($writeMap, $originalData);
+  Logger::logAsync("[Test] Successfully wrote $bytesWritten bytes.");
+
+  // 3. Объявляем зеркальную карту ЧТЕНИЯ (Парсер)
+  // Для чтения нам нужны точные типы и указание, как прочитать динамический payload
+  $readMap = [
+    'magic_marker' => 'u8',
+    'status_code'  => 'i16b',
+    'velocity'     => 'i32l',
+    'payload_len'  => 'u32b', // Читаем длину, сохраненную в сетевом порядке
+    'payload'      => fn(IStream $s, array $ctx) => $s->readData($ctx['payload_len']), // Читаем ровно N байт строки
+    'vectors'      => [
+      'alpha' => 'f32l',
+      'beta'  => 'f64b'
+    ]
+  ];
+
+  Logger::logAsync('[Test] Reading and deserializing a structure from a stream...');
+
+  // Читаем структуру из этого же стрима
+  $parsedData = $stream->read($readMap);
+
+  Logger::logAsync('[Test] Verification of the obtained results:');
+
+  // Проверяем корректность восстановления данных
+  assert($parsedData['magic_marker'] === $originalData['magic_marker'], 'Failure magic_marker');
+  Logger::log('  - Magic Marker: OK (0x' , dechex($parsedData['magic_marker']) , ')');
+
+  assert($parsedData['status_code'] === $originalData['status_code'], 'Failure status_code');
+  Logger::log('  - Status Code (i16b): OK (' , $parsedData['status_code'] , ')');
+
+  assert($parsedData['velocity'] === $originalData['velocity'], 'Failure velocity');
+  Logger::log('  - Velocity (i32l): OK (' , $parsedData['velocity'] , ')');
+
+  assert($parsedData['payload'] === $originalData['payload'], 'Failure payload');
+  Logger::log('  - Payload String: OK (\'' , $parsedData['payload'] , '\')');
+
+  // Сверка float с допустимой дельтой погрешности
+  assert(abs($parsedData['vectors']['alpha'] - $originalData['vectors']['alpha']) < 0.0001, 'Failure alpha float');
+  Logger::log('  - Vector Alpha (f32l): OK (' , $parsedData['vectors']['alpha'] , ')');
+
+  assert(abs($parsedData['vectors']['beta'] - $originalData['vectors']['beta']) < 0.000000001, 'Failure beta double');
+  Logger::log('  - Vector Beta (f64b): OK (' , $parsedData['vectors']['beta'] , ')');
+
+  Logger::log('[Test] ALL CHECKS PASSED SUCCESSFULLY! The codec works perfectly,');
+
+  $stream->close();
+  Loop::stop();
+});
+
+// Запускаем Loop для прокрутки микротасок
+Loop::run();

@@ -38,6 +38,17 @@ class HttpConnection
       while (($line = $this->stream->readLine("\r\n")) !== "")
         $headers[] = $line;
       
+      // 2. Ищем заголовок Content-Length, чтобы понять, сколько байт тела нужно прочесть
+      $contentLength = null;
+      foreach ($headers as $header)
+        if (stripos($header, 'Content-Length:') === 0)
+          $contentLength = (int)trim(substr($header, 15));
+      
+      if ($contentLength !== null)
+        $body = $stream->read($contentLength);
+      else
+        $body = null;
+      
       // 3. Вызываем пользовательский хендлер бизнес-логики
       $result = $handler($path, $this);
 

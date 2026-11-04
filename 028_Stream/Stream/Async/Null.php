@@ -18,5 +18,7 @@ class Stream_Async_Null implements IStream_Async, IDebug_Leak_Object
   #[\Override] function sendEnd       (                  ): void {}
   #[\Override] function resumeSend    (callable $callback): void {} //TODO: twrow
   #[\Override] function pauseSend     (                  ): void {}
-  #[\Override] function close         (                  ) {}
+
+  #[\Override] function isValid       (                  ): bool { return false; }
+  #[\Override] function close         (                  )       {               }
 }

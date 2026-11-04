@@ -15,11 +15,11 @@ class Stream_IO_Reader extends Stream_IO_Base
   
   function onRecv($stream): void
   {
-    $chunk = $this->stream->recv($this->chunkSize);
+    $chunk = $stream->recv($this->chunkSize);
   //Logger::debug('onRecv(', $this->chunkSize, ')=',[$chunk]);
-    if ($chunk==='') //End of stream
+    if ($chunk==='' || $chunk===false) //End of stream
     {
-      if (!$this->stream->isRecvEnd())
+      if (!$stream->isRecvEnd())
       {
         Logger::error('onRecv: no data')->backtrace();
         return;

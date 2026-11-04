@@ -25,5 +25,7 @@ interface IStream_Async
 
 //****************************************************************
 // Time life
+
+  function isValid(): bool;
   function close();
 }

@@ -116,59 +116,6 @@ class SocketConnection extends Stream_Async_Base
       Loop::removeWriteStream($this->socket);
   }
 
-  /**
-   * Асинхронная неблокирующая запись
-   *   с честным Backpressure
-   *   с мягкой обработкой обрыва соединения
-   */
-  function write(string $data): bool
-  { //TODO: remove?
-    $length    = strlen($data);
-    $written   = 0;
-
-    while ($written < $length)
-    {
-      if (!$this->isValid()) //TODO: ???
-        return false; // Сокет уже закрыт
-      //throw new \RuntimeException("Attempt to write to a closed socket #{$this->id}");
-
-      // Пытаемся записать оставшийся кусок данных
-      $chunk  = substr($data, $written);
-      $result = $this->send($chunk);
-
-      // ШТАТНАЯ ОПЕРАЦИЯ: клиент разорвал соединение посередине отправки.
-      // Вместо RuntimeException возвращаем false для мягкого выхода из циклов.
-      if ($result === false)
-        if ($this->isSendEnd)
-          return false;
-        else
-          continue;
-          
-      $written += $result;
-      
-      if ($result !== false)
-        continue;
-      
-
-      // Логика ожидания Writable буфера ОС через Fiber::suspend()
-      $currentFiber = \Fiber::getCurrent();
-      if ($currentFiber === null)
-        throw new \LogicException('Method write can only be called from within a fiber.');
-
-      $this->resumeSend(function() use ($currentFiber) {
-        // Как только сокет готов принимать байты - убираем его из отслеживания записи и будим файбер
-        if (!$currentFiber->isTerminated() && $currentFiber->isSuspended())
-          $currentFiber->resume();
-      });
-
-      // Ставим текущий файбер на паузу
-      \Fiber::suspend();
-      
-      $socket->pauseSend();
-    }
-    return true;
-  }
-
   // --- ЗАКРЫТИЕ РЕСУРСОВ ---
 
   function close(): void
