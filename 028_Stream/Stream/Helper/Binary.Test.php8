@@ -8,19 +8,28 @@ Loop::async(function() {
   $asyncLoopback = new Stream_Async_LoopBack();
   $stream = $asyncLoopback->syncStream();
 
-  // 2. Объявляем карту записи (Форматировщик)
-  // payload_len посчитается автоматически, magic_marker и координаты - жесткие типы
-  $writeMap = [
+  // --- ЕДИНАЯ ДЕКЛАРАТИВНАЯ КАРТА ПРОТОКОЛА ---
+  $packetSchema = [
     'magic_marker' => 'u8',
     'status_code'  => 'i16b', // Проверим отрицательное число в Big-Endian
     'velocity'     => 'i32l', // Проверим отрицательное число в Little-Endian
-    'payload_len'  => fn(array $data) => pack('N', strlen($data['payload'])), // u32b авто-длина
-    'payload'      => fn($s, string $val) => $s->writeData($val),   // Сырая строка
+
+    // Паттерн 1 (Префиксный тип): Говорим, что это строка, 
+    // длина которой запишется/прочитается как 32-битный Big-Endian инт
+    'payload'      => 'p:u32b', 
+    
     'vectors'      => [
-      'alpha' => 'f32l', // Дробное float
-      'beta'  => 'f64b'  // Дробное double в Big-Endian
+      'alpha' => 'f32l',
+      'beta'  => 'f64b'
+    ],
+    
+    // Паттерн 3 (Если нужно кастомное хитрое поле, пример кодек-пары)
+    'custom_checksum' => [
+      'read'  => fn($s) => $s->readData(2),
+      'write' => fn($s, $val) => $stream->writeData(str_pad((string)$val, 2, "0"))
     ]
   ];
+
 
   // Данные для отправки
   $originalData = [
@@ -31,33 +40,20 @@ Loop::async(function() {
     'vectors'      => [
       'alpha' => 3.14159,
       'beta'  => 2.718281828459
-    ]
+    ],
+    'custom_checksum' => 'XY',
   ];
 
   Logger::logAsync('[Test] Packing and writing a structure to a loopback stream...');
 
   // Записываем структуру одной командой
-  $bytesWritten = $stream->writeStructure($writeMap, $originalData);
+  $bytesWritten = $stream->writeStructure($packetSchema, $originalData);
   Logger::logAsync("[Test] Successfully wrote $bytesWritten bytes.");
-
-  // 3. Объявляем зеркальную карту ЧТЕНИЯ (Парсер)
-  // Для чтения нам нужны точные типы и указание, как прочитать динамический payload
-  $readMap = [
-    'magic_marker' => 'u8',
-    'status_code'  => 'i16b',
-    'velocity'     => 'i32l',
-    'payload_len'  => 'u32b', // Читаем длину, сохраненную в сетевом порядке
-    'payload'      => fn($s, array $ctx) => $s->readData($ctx['payload_len']), // Читаем ровно N байт строки
-    'vectors'      => [
-      'alpha' => 'f32l',
-      'beta'  => 'f64b'
-    ]
-  ];
 
   Logger::logAsync('[Test] Reading and deserializing a structure from a stream...');
 
   // Читаем структуру из этого же стрима
-  $parsedData = $stream->read($readMap);
+  $parsedData = $stream->read($packetSchema);
 
   Logger::logAsync('[Test] Verification of the obtained results:');
 
