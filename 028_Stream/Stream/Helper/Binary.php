@@ -1,4 +1,7 @@
 <?php
+use Stream_IO_Writer as IWriter;
+use Stream_IO_Reader as IReader;
+
 class Stream_Helper_Binary
 {
   private const BINARY_FORMATS = [
@@ -40,12 +43,12 @@ class Stream_Helper_Binary
   /**
    * Статический метод для рекурсивного разбора бинарной структуры из стрима
    */
-  public static function parseStructure(IStream $stream, array $formatMap): array 
+  public static function parseStructure(IStream|IReader $stream, array $formatMap): array 
   {
     return self::processMap($stream, $formatMap, []);
   }  
   
-  private static function processMap(IStream $stream, array $formatMap, array $context): array
+  private static function processMap(IStream|IReader $stream, array $formatMap, array $context): array
   {
     foreach ($formatMap as $key => $format)
     {
@@ -87,7 +90,7 @@ class Stream_Helper_Binary
   private static function resolveSign(string $format, mixed $value): mixed
   {
     if (!str_starts_with($format, 'i')) return $value;
-    if (str_contains($format, '16') && $value >= 0x8000)  return $value - 0x10000;
+    if (str_contains($format, '16') && $value >=     0x8000)  return $value -     0x10000;
     if (str_contains($format, '32') && $value >= 0x80000000)  return $value - 0x100000000;
     return $value;
   }
@@ -116,17 +119,20 @@ class Stream_Helper_Binary
    * @param array $data Ассоциативный массив с реальными данными для упаковки
    * @return int Общее количество успешно записанных байт
    */
-  public static function packStructure(IStream $stream, array $formatMap, array $data): int 
+  public static function packStructure(IStream|IWriter $stream, array $formatMap, array $data): int 
   {
     return self::serializeMap($stream, $formatMap, $data);
   }
   
-  private static function serializeMap(IStream $stream, array $formatMap, array $data): int {
+  private static function serializeMap(IStream|IWriter $stream, array $formatMap, array $data): int
+  {
     $totalBytesWritten = 0;
   
-    foreach ($formatMap as $key => $format) {
+    foreach ($formatMap as $key => $format)
+    {
       // Если ключа нет в данных, но в формате стоит callable - это вычисляемое поле (например, длина)
-      if (!array_key_exists($key, $data) && is_callable($format)) {
+      if (!array_key_exists($key, $data) && is_callable($format))
+      {
         $calculatedValue = $format($data);
         $totalBytesWritten += $stream->writeData((string)$calculatedValue);
         continue;
@@ -135,22 +141,24 @@ class Stream_Helper_Binary
       $value = $data[$key] ?? null;
   
       // Сценарий 1: В формате указано число (int) - пишем сырую строку заданной длины
-      if (is_int($format)) {
+      if (is_int($format))
+      {
         $totalBytesWritten += $stream->writeData(str_pad((string)$value, $format, "\x00"));
         continue;
       }
   
       // Сценарий 2: Вложенная структура (массив в массиве)
-      if (is_array($format) && is_array($value)) {
+      if (is_array($format) && is_array($value))
+      {
         $totalBytesWritten += self::serializeMap($stream, $format, $value);
         continue;
       }
   
       // Сценарий 3: Наш красивый бинарный тип (u8, i32b, etc.)
-      if (is_string($format)) {
-        if (!isset(self::BINARY_FORMATS[$format])) {
+      if (is_string($format))
+      {
+        if (!isset(self::BINARY_FORMATS[$format]))
           throw new \InvalidArgumentException("Неизвестный бинарный формат для упаковки: '$format'.");
-        }
   
         $config = self::BINARY_FORMATS[$format];
 
@@ -166,7 +174,8 @@ class Stream_Helper_Binary
       }
   
       // Сценарий 4: Кастомная функция записи, если передана в формате
-      if (is_callable($format)) {
+      if (is_callable($format))
+      {
         $result = $format($stream, $value, $data);
         $totalBytesWritten += is_int($result) ? $result : 0;
         continue;
@@ -183,7 +192,7 @@ class Stream_Helper_Binary
   {
     if (!is_int($value) || !str_starts_with($format, 'i')) return $value;
     
-    if (str_contains($format, '16') && $value < 0) return $value + 0x10000;
+    if (str_contains($format, '16') && $value < 0) return $value +     0x10000;
     if (str_contains($format, '32') && $value < 0) return $value + 0x100000000;
   }
   

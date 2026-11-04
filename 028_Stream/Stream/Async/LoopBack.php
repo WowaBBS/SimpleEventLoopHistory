@@ -24,7 +24,7 @@ class Stream_Async_LoopBack extends Stream_Async_Base
     $canSend = $this->canSend();
     $result = $this->buffer->recv($size);
     if (!$canSend && $this->isWriting())
-      $this->startSend();
+      $this->startSend(true);
     return $result;
   }
   
@@ -81,7 +81,7 @@ class Stream_Async_LoopBack extends Stream_Async_Base
     $this->startRecv(true);
   }
 
-  function startSend(bool $enable)
+  protected function startSend(bool $enable)
   {
     if (!$enable) return;
     

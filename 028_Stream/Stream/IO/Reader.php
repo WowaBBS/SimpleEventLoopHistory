@@ -156,37 +156,22 @@ class Stream_IO_Reader extends Stream_IO_Base
 
   function readLine(string $end="\n", bool $strict=false) { return $this->until()->str($end)->strict($strict)->read(); }
 
-  function readList($args): array|string
+  function read(...$args): array|string
   {
-    $res = [];
-    foreach ($args as $arg)
-      switch (gettype($arg))
-      {
-      case 'double':
-        Logger::warning('Reading float size is not a good sign')->backtrace();
-        $arg = @(int)$arg;
-      case 'integer':
-        $res[] = $this->readData($arg);
-        break;
-      case 'string':
-      //TODO: Reader by name
-        throw new \LogicException('Reader '.$arg.' is not supported');
-        break;
-      case 'array':
-        if (array_is_list($arg))
-        {
-          $res[] = $this->readList($arg);
-          break;
-        }
-        throw new \LogicException('Unallowed read assoc array');
-      case 'object': //TODO:
-      case 'boolean':
-      default:
-        throw new \LogicException('Unallowed write type '. gettype($arg));
-      }
-    if (count($res) === 1)
-      return array_first($res);
-    return $res;
+    if (empty($args)) return $this->readData(1, 0);
+    if (is_float($args[0]))
+    {
+      Logger::warning('Reading float size is not a good sign')->backtrace();
+      $arg[0] = @(int)$args[0];
+    }
+    if (is_int($args[0])) return $this->readData((int)$args[0], $args[1] ?? null); //Check count 2
+
+    $arg = count($args) === 1 ? $args[0] : $args;
+    if (is_callable ($arg)) return $arg($this);
+    // РЕШЕНИЕ: Если пришел массив-карта, отдаем его в хелпер, передавая сам стрим
+    if (is_array    ($arg)) return Stream_Helper_Binary::parseStructure($this, $arg);
+    
+    throw new \InvalidArgumentException('Unallowed read type '. gettype($arg));
   }
   
 //****************************************************************

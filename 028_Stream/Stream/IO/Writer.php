@@ -53,7 +53,7 @@ class Stream_IO_Writer extends Stream_IO_Base
     $this->execute();
   }
   
-  function writeList($args): int
+  function write(...$args): int
   {
     $res = 0;
     foreach ($args as $arg)
@@ -69,7 +69,7 @@ class Stream_IO_Writer extends Stream_IO_Base
       case 'array':
         if (array_is_list($arg))
         {
-          $res += $this->writeList($arg);
+          $res += $this->write(...$arg);
           break;
         }
         throw new \LogicException('Unallowed write assoc array');
@@ -84,6 +84,14 @@ class Stream_IO_Writer extends Stream_IO_Base
         throw new \LogicException('Unallowed write type '. gettype($arg));
       }
     return $res;
+  }
+  
+  /**
+   * Записывает декларативную бинарную структуру в поток, используя хелпер
+   */
+  function writeStructure(array $formatMap, array $data): int
+  {
+    return Stream_Helper_Binary::packStructure($this, $formatMap, $data);
   }
   
 //****************************************************************

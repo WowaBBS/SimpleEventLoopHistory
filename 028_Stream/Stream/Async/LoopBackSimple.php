@@ -1,6 +1,9 @@
 <?
 class Stream_Async_LoopBackSimple implements IStream_Async
 {
+  function syncStream() { return new Stream_Sync($this); }
+//function syncStream() { return new Stream_SyncSimple($this); }
+
   private string $buffer = '';
   private bool $isEnd = false;
   /** @var callable|null */
@@ -40,7 +43,7 @@ class Stream_Async_LoopBackSimple implements IStream_Async
   }
 
   public function sendEnd(): void { $this->isEnd = true; }
-  public function resumeSend(callable $callback): void { Loop::delay(0, $callback); }
+  public function resumeSend(callable $callback): void { Loop::delay(0, fn()=>$callback($this)); }
   public function pauseSend(): void {}
   public function close(): void { $this->buffer = ''; $this->isEnd = true; }
 
@@ -50,6 +53,6 @@ class Stream_Async_LoopBackSimple implements IStream_Async
     
     $cb = $this->recvCallback;
     $this->recvCallback = null; // атомарный сброс
-    $cb();
+    $cb($this);
   }
 }

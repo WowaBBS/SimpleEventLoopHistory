@@ -15,7 +15,7 @@ Loop::async(function() {
     'status_code'  => 'i16b', // Проверим отрицательное число в Big-Endian
     'velocity'     => 'i32l', // Проверим отрицательное число в Little-Endian
     'payload_len'  => fn(array $data) => pack('N', strlen($data['payload'])), // u32b авто-длина
-    'payload'      => fn(IStream $s, string $val) => $s->writeData($val),   // Сырая строка
+    'payload'      => fn($s, string $val) => $s->writeData($val),   // Сырая строка
     'vectors'      => [
       'alpha' => 'f32l', // Дробное float
       'beta'  => 'f64b'  // Дробное double в Big-Endian
@@ -47,7 +47,7 @@ Loop::async(function() {
     'status_code'  => 'i16b',
     'velocity'     => 'i32l',
     'payload_len'  => 'u32b', // Читаем длину, сохраненную в сетевом порядке
-    'payload'      => fn(IStream $s, array $ctx) => $s->readData($ctx['payload_len']), // Читаем ровно N байт строки
+    'payload'      => fn($s, array $ctx) => $s->readData($ctx['payload_len']), // Читаем ровно N байт строки
     'vectors'      => [
       'alpha' => 'f32l',
       'beta'  => 'f64b'
@@ -84,8 +84,4 @@ Loop::async(function() {
   Logger::log('[Test] ALL CHECKS PASSED SUCCESSFULLY! The codec works perfectly,');
 
   $stream->close();
-  Loop::stop();
 });
-
-// Запускаем Loop для прокрутки микротасок
-Loop::run();

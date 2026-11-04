@@ -10,7 +10,8 @@ class Stream_SyncSimple implements IStream
     $this->stream = $stream;
   }
 
-  // --- СЕКЦИЯ ЗАПИСИ (WRITE) ---
+//****************************************************************
+// --- СЕКЦИЯ ЗАПИСИ (WRITE) ---
 
   /**
    * Записывает декларативную бинарную структуру в поток, используя хелпер
@@ -70,7 +71,8 @@ class Stream_SyncSimple implements IStream
 
   public function writeEnd(): void { $this->stream->sendEnd(); }
 
-  // --- СЕКЦИЯ ЧТЕНИЯ (READ) ---
+//****************************************************************
+// --- СЕКЦИЯ ЧТЕНИЯ (READ) ---
 
   public function waitData(): bool { return $this->readBuffer !== '' || $this->waitMore(); }
   
@@ -124,7 +126,7 @@ class Stream_SyncSimple implements IStream
     $this->readBuffer = substr($this->readBuffer, $size);
     return $result;
   }
-
+  
   public function peek(int $min = 1, ?int $max = null): string
   {
     $max = $max ?? $min;
@@ -173,9 +175,9 @@ class Stream_SyncSimple implements IStream
     if (empty($args)) return $this->readData(1, 0);
     if (is_int($args[0])) return $this->readData((int)$args[0], $args[1] ?? null); //Check count 2
     $arg = count($args) === 1 ? $args[0] : $args;
-    if (is_callable($arg)) return $arg($this);
+    if (is_callable ($arg)) return $arg($this);
     // РЕШЕНИЕ: Если пришел массив-карта, отдаем его в хелпер, передавая сам стрим
-    if (is_array($arg)) return Stream_Helper_Binary::parseStructure($this, $arg);
+    if (is_array    ($arg)) return Stream_Helper_Binary::parseStructure($this, $arg);
     
     throw new \InvalidArgumentException("Неподдерживаемый тип аргумента в методе read().");
   }

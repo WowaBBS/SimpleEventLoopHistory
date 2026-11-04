@@ -20,10 +20,11 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
 //****************************************************************
 // Write
 
-  function write     (...$args    ): int  { return $this->writer->writeList ($args); }
-  function writeData (string $data): int  { return $this->writer->writeData ($args); }
-  function writeEnd  (            ): void {        $this->writer->writeEnd  (     ); }
-
+  function write     (    ...$args): int  { return $this->writer->write     (...$args); }
+  function writeData (string $data): int  { return $this->writer->writeData (   $data); }
+  function writeEnd  (            ): void {        $this->writer->writeEnd  (        ); }
+  function writeStructure(array $formatMap, array $data): int { return $this->writer->writeStructure($formatMap, $data); }
+  
 //****************************************************************
 // Read
 
@@ -33,7 +34,7 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
   function peek     (int    $min=1 ,?int $max=null  ): string { return $this->reader->peek     ($min  ,$max); }
   function unread   (string $data  ,bool $new=false ): void   {        $this->reader->unread   ($data ,$new); }
   function skip     (int    $size                   ): void   {        $this->reader->skip     ($size      ); }
-  function read     (...$args                  ):array|string { return $this->reader->readList ($args      ); }
+  function read     (...$args                  ):array|string { return $this->reader->read     (...$args   ); }
   function until    (                               )         { return $this->reader->until    (           ); }
   function readLine (string $till="\n", bool $strict=false)   { return $this->reader->readLine ($till ,strict: $strict); }
 
