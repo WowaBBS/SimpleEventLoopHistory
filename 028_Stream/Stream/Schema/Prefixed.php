@@ -1,7 +1,7 @@
 <?php
 class Stream_Schema_Prefixed extends Stream_Schema_Node
 {
-  private Stream_Schema_Type $lengthType;
+  private Stream_Schema_Int $lengthType;
 
   private static array $cache = [];
   static function get(string $format):self { return self::$cache[$format] ??= new self($format); }
@@ -11,13 +11,12 @@ class Stream_Schema_Prefixed extends Stream_Schema_Node
     if (!str_starts_with($format, 'p:')) return null;
     
     $parts = explode(':', $format, 2); // ['p', 'u16b']
-    if (!Stream_Schema_Type::has($parts[1])) return null;
     return self::get($parts[1]);
   }
   
   public function __construct(string $lengthFormat)
   {
-    $this->lengthType = new Stream_Schema_Type($lengthFormat);
+    $this->lengthType = Stream_Schema_Factory::get($lengthFormat);
   }
 
   public function read(IStream $stream, array $context): string

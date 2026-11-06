@@ -13,7 +13,7 @@ class Stream_Schema_Context
   
   public function read(): mixed
   {
-    return $this->schema->read($this->stream);
+    return $this->schema->read($this->stream, []);
   }
 
   public function write(mixed $data): int

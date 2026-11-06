@@ -12,18 +12,18 @@ Loop::async(function() {
 
   // --- ЕДИНАЯ ДЕКЛАРАТИВНАЯ КАРТА ПРОТОКОЛА ---
   $packetSchema = Factory::get([
-    'magic_marker' => Factory::type('u8'),
-    'status_code'  => 'i16b', // Проверим отрицательное число в Big-Endian
-    'velocity'     => 'i32l', // Проверим отрицательное число в Little-Endian
+    'magic_marker' => 'uint8',
+    'status_code'  => 'int16be', // Проверим отрицательное число в Big-Endian
+    'velocity'     => 'int32le', // Проверим отрицательное число в Little-Endian
 
     // Паттерн 1 (Префиксный тип): Говорим, что это строка, 
     // длина которой запишется/прочитается как 32-битный Big-Endian инт
   //'payload'      => 'p:u32b', 
-    'payload'      => Factory::prefixed('u32b'),
+    'payload'      => Factory::prefixed('uint32be'),
     
     'vectors'      => Factory::struct([
-      'alpha' => 'f32l',
-      'beta'  => 'f64b'
+      'alpha' => 'float32le',
+      'beta'  => 'float64be',
     ]),
     
     // Паттерн 3 (Если нужно кастомное хитрое поле, пример кодек-пары)
@@ -66,11 +66,11 @@ Loop::async(function() {
   assert($parsedData['magic_marker'] === $originalData['magic_marker'], 'Failure magic_marker');
   Logger::log('  - Magic Marker: OK (0x' , dechex($parsedData['magic_marker']) , ')');
 
-  assert($parsedData['status_code'] === $originalData['status_code'], 'Failure status_code');
-  Logger::log('  - Status Code (i16b): OK (' , $parsedData['status_code'] , ')');
+  Assert::equals($originalData['status_code'], $parsedData['status_code'], 'Failure status_code');
+  Logger::log('  - Status Code (i16be): OK (' , $parsedData['status_code'] , ')');
 
   assert($parsedData['velocity'] === $originalData['velocity'], 'Failure velocity');
-  Logger::log('  - Velocity (i32l): OK (' , $parsedData['velocity'] , ')');
+  Logger::log('  - Velocity (i32le): OK (' , $parsedData['velocity'] , ')');
 
   assert($parsedData['payload'] === $originalData['payload'], 'Failure payload');
   Logger::log('  - Payload String: OK (\'' , $parsedData['payload'] , '\')');

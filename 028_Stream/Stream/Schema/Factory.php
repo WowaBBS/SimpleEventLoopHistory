@@ -1,4 +1,5 @@
 <?php
+
 class Stream_Schema_Factory
 {
   static array $cache = [];
@@ -16,7 +17,7 @@ class Stream_Schema_Factory
     // Сценарий 3: Вложенная структура
     if (is_array ($node)) return self::struct($node);
 
-    // Сценарий 4: Наш красивый бинарный тип (u8, i32b, etc.)
+    // Сценарий 4: Наш красивый бинарный тип (uint8, int32be, etc.)
     if (is_string ($node)) return self::named($node);
 
     throw new \LogicException("Поле '{$node}' должно реализовывать интерфейс IStream_Codec");
@@ -25,12 +26,13 @@ class Stream_Schema_Factory
   static function fixed    (int    $size   ) { return self::$cache[$size] ??= new Stream_Schema_Fixed($size); }
   static function struct   (array  $map    ) { return new Stream_Schema_Struct        ($map    ); }
   static function prefixed (string $lenFmt ) { return     Stream_Schema_Prefixed ::get($lenFmt ); }
-  static function type     (string $fmt    ) { return     Stream_Schema_Type     ::get($fmt    ); }
+//static function type     (string $fmt    ) { return     Stream_Schema_Type     ::get($fmt    ); }
   
   static function named(string $name)
   {
     return self::$cache[$name] ??= 
-        Stream_Schema_Type     ::try($name)
+        Stream_Schema_Int_Factory ::try($name)
+    //Stream_Schema_Type     ::try($name)
       ??Stream_Schema_Prefixed ::try($name)
       ??throw new \LogicException("Неизвестный бинарный формат: '$name'");
   }

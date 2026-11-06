@@ -1,3 +1,16 @@
+1) Теперь что бы проверить на прочность архитектуру, можно сделать типы:
+u24b, u24l, i24b, i24l,  u48b, u48l, i48b, i48l,  и другие кратные 8 битам.
+Может придумать запить размеа в байтах? Что бы не думать сколько бит в Н байтах.
+u3b, u5l, i7b, i8l, т.е. i8 и u8 -- это байт. i8l и i8b -- это 8 байт.
+Так же символами для считывания одного символа в то числе из нескольких байт:
+c8, c16, c32, utf8, utf16l, utf16b, utf32l, utf32b,
+Так же чисел с переменным числом байт
+а) Кодирование как в utf8
+б) Старший бит в байте, показвает, что число ещё не закончилось, и кодируется по 7 бит.
+
+
+//-----------------------------
+
 1) Напишем методы расширенного парсинга
 2) Вместо буквенные обозначений бинарных данныл лучше использовать более понятные: i32 u8 i64b u16l и т.п.
 3) Для того что бы снизить нагрузку лучше вывести методы для бинарных операций в класс Stream_Helper_Binary, как статические методы. Использовать из класса стрима, и передавать в него сам стрим, что бы он мог читать.
@@ -5,7 +18,54 @@
 5) Теперь какой-нибудь тест написать для записис чтения бинарных данных?  Я написал Stream_Async_LoopBack, который читает те данные, которые были записаны в него же. Можно его использовать.
 6) У нас теперь есть $writeMap и $readMap, они почти похожи, оличаются только payload_len и payload. Причём payload_len он воспомогательный. Вместо двух мап нужно сделать что бы была одна.
 А два поля payload_len и payload заменить на одно payload в мап. Какие варианты решения. Придумаем и реализуем несколько для сравнения?
+7) Паттерн 3 неудобен, что можно спутать с ним массив. лучше сделать интерфейс чтения/записи, базовый класс и от него наследовать анонимный класс с имлементацией методов чтения и записи.
+7) Второй паттерн тоже неплохой. Было бы неплохо его реализовать тоже и попробовать.
+8) Stream_Helper_Binary стал слишком большим, думаю его можно разбить на классы Stream_Schema_*
+9) У стрима лучше сделать метод schema, что бы можно было так делать
+#data = $stream->schema($schema)->read();
+$stream->schema($schema)->write(#data);
+10) Добавил фэктори:
+class Stream_Schema_Factory
+{
+  static function get(mixed $node): IStream_Codec
+  {
+    if ($node instanceof IStream_Codec) return $node;
+    if (is_int($node)) return self::fixed($node);
+    if (is_array ($node)) return self::struct($node);
+    if (is_string ($node)) return self::named($node);
+    throw new \LogicException("Поле '{$node}' должно реализовывать интерфейс IStream_Codec");
+  }
+  
+  static function fixed    (int    $size   ) { return self::$cache[$size] ??= new Stream_Schema_Fixed($size); }
+  static function struct   (array  $map    ) { return new Stream_Schema_Struct        ($map    ); }
+  static function prefixed (string $lenFmt ) { return     Stream_Schema_Prefixed ::get($lenFmt ); }
+  static function type     (string $fmt    ) { return     Stream_Schema_Type     ::get($fmt    ); }
+  
+  static function named(string $name)
+  {
+    return self::$cache[$name] ??= 
+        Stream_Schema_Type     ::try($name)
+      ??Stream_Schema_Prefixed ::try($name)
+      ??throw new \LogicException("Неизвестный бинарный формат: '$name'");
+  }
+}
+Что бы старый способ создания работал.
 
+Так же для удобно записи своих функций:
+class Stream_Schema_Custom implements IStream_Codec
+{
+  protected $read  ;
+  protected $write ;
+
+  function __construct($read, $write)
+  {
+    $this->read  = $read  ;
+    $this->write = $write ;
+  }
+  
+  function read  (IStream $stream,               array $context): mixed { return ($this->read  )($stream,         $context); }
+  function write (IStream $stream, mixed $value, array $context): int   { return ($this->write )($stream, $value, $context); }
+}
 
 //-----------------------------
 

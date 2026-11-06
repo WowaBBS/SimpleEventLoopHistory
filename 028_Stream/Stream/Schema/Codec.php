@@ -1,6 +1,8 @@
 <?php
 interface IStream_Codec
 {
+  function getSize(): int;
+  
   /** Чтение поля из стрима */
   function read(IStream $stream, array $context): mixed;
   
@@ -14,12 +16,13 @@ interface IStream_Codec
 abstract class Stream_Schema_Node implements IStream_Codec
 {
   // Сюда можно вынести общие хелперы, например, resolveSign / prepareSign
+  function getSize(): int { return -1; }
 }
 
 /**
  * 
  */
-class Stream_Schema_Custom implements IStream_Codec
+class Stream_Schema_Custom extends Stream_Schema_Node
 {
   protected $read  ;
   protected $write ;

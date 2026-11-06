@@ -2,33 +2,17 @@
 class Stream_Schema_Type extends Stream_Schema_Node 
 {
   private const FORMATS = [
-    // 8-bit
-    'i8'   => ['mask' => 'c', 'size' => 1],    'u8'   => ['mask' => 'C', 'size' => 1],
+    // --- СИМВОЛЫ И СТРОКИ (CHAR/UTF) ---
+    'c1'   => ['size' => 1, 'custom' => true, 'type' => 'c8'],
+    'c2'   => ['size' => 2, 'custom' => true, 'type' => 'c16'],
+    'c4'   => ['size' => 4, 'custom' => true, 'type' => 'c32'],
+    'utf8' => ['size' => 0, 'custom' => true, 'type' => 'utf8'], // Динамический размер
+    'utf2b'=> ['size' => 2, 'custom' => true, 'type' => 'utf16b'],
+    'utf2l'=> ['size' => 2, 'custom' => true, 'type' => 'utf16l'],
 
-    // 16-bit (Big-Endian)
-    'i16b' => ['mask' => 's', 'size' => 2], // PHP s зависит от архитектуры, но для строгости лучше использовать явные знаковые бинарные операции, ниже исправим это
-    'u16b' => ['mask' => 'n', 'size' => 2], // Сетевой порядок
-
-    // 16-bit (Little-Endian)
-    'i16l' => ['mask' => 'v', 'size' => 2], // В PHP v беззнаковый, знаковость восстановим математически
-    'u16l' => ['mask' => 'v', 'size' => 2],
-
-    // 32-bit (Big-Endian)
-    'i32b' => ['mask' => 'N', 'size' => 4], // Знаковость восстановим
-    'u32b' => ['mask' => 'N', 'size' => 4],
-
-    // 32-bit (Little-Endian)
-    'i32l' => ['mask' => 'V', 'size' => 4],    'u32l' => ['mask' => 'V', 'size' => 4],
-
-    // 64-bit (Big-Endian)
-    'i64b' => ['mask' => 'J', 'size' => 8],    'u64b' => ['mask' => 'J', 'size' => 8],
-
-    // 64-bit (Little-Endian)
-    'i64l' => ['mask' => 'P', 'size' => 8],    'u64l' => ['mask' => 'P', 'size' => 8],
-
-    // Floats
-    'f32b' => ['mask' => 'G', 'size' => 4],    'f32l' => ['mask' => 'g', 'size' => 4],
-    'f64b' => ['mask' => 'E', 'size' => 8],    'f64l' => ['mask' => 'e', 'size' => 8],
+    // --- ПЕРЕМЕННАЯ ДЛИНА (VARINT) ---
+    'v_utf8' => ['size' => 0, 'custom' => true, 'type' => 'v_utf8'], // Кодирование как в UTF-8
+    'v_msb'  => ['size' => 0, 'custom' => true, 'type' => 'v_msb'],  // Старший бит (7-бит кодирование)
   ];
   
   private static array $cache = [];
