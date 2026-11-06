@@ -20,8 +20,10 @@ abstract class Stream_Stack_Base implements IStream_Stack, IDebug_Leak_Object
     }
     catch(\Throwable $e)
     {
-      Logger::Exception($e, static::class, ': call handler exception');
-      $this->getDeferred()?->reject($e);
+      if($deferred = $this->getDeferred())
+        $deferred->reject($e);
+      else
+        Logger::Exception($e, static::class, ': call handler exception');
     }
   }
   

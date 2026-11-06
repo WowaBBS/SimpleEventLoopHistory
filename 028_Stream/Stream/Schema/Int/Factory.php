@@ -55,26 +55,31 @@ class Stream_Schema_Int_Factory
       'uint48be' => self::pack2('nN', 6 ,32, 0),
       'uint48le' => self::pack2('Vv', 6 , 0,32),
 
-      'VarInt/utf8'    => new Stream_Schema_Int_Utf8(),
-      'VarInt/utf16le' => new Stream_Schema_Int_Utf8(),
-      'VarInt/utf16be' => new Stream_Schema_Int_Utf8(),
-      'VarInt/msb'     => new Stream_Schema_Int_VarintMsb(),
-      'VarInt/ZigZag'  => new Stream_Schema_Int_VarintMsb(),
-
+      'int/wtf8'    => new Stream_Schema_Int_Utf8(),
+      'int/utf8'    => new Stream_Schema_Int_Utf8(),
+    /* TODO: in the nearest future
+      'int/utf16le' => new Stream_Schema_Int_Utf16(),
+      'int/utf16be' => new Stream_Schema_Int_Utf16(),
+      'int/msb'     => new Stream_Schema_Int_Msb(),
+      'zigzag'      => new Stream_Schema_Int_ZigZag(),
+    */
       default => null
     };
   }
   
   static function isLittleEndian() { static $res = unpack('S',"\x01\x00")[1] === 1; return $res; }
   
+  static string $defaultEndian = 'le'; // be, me
+  
   protected static function manualEndian($name)
   {
-    
+    //TODO: make to oveerride for structs
+    return self::get($name.(self::$defaultEndian));
   }
   
   protected function machineEndian($name)
   {
-    return self::get($name.(self::isLittleEndian()? 'le':'be'));
+    return self::get(substr($name, 0, -2).(self::isLittleEndian()? 'le':'be'));
   }
   
   protected static function pack(string $mask, int $size)

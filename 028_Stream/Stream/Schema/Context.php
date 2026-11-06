@@ -18,6 +18,6 @@ class Stream_Schema_Context
 
   public function write(mixed $data): int
   {
-    return $this->schema->write($this->stream, $data);
+    return $this->schema->write($this->stream, $data, []);
   }
 }
