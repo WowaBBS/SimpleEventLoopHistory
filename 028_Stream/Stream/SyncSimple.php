@@ -162,7 +162,7 @@ class Stream_SyncSimple implements IStream
     return $line;
   }
 
-  public function read(...$args): array|string
+  public function read(...$args): mixed
   {
     if (empty($args)) return $this->readData(1, 0);
     if (is_int($args[0])) return $this->readData((int)$args[0], $args[1] ?? null); //Check count 2

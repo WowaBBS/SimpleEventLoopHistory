@@ -4,7 +4,7 @@ include '../../_All.Cli.php';
 use Stream_Schema_Factory as Factory;
 
 Loop::async(function() {
-  Logger::logAsync('[Test] Initializing a binary Loopback test...');
+  Logger::log('[Test] Initializing a binary Loopback test...');
 
   // 1. Создаем асинхронный loopback и оборачиваем его в наш синхронный стрим
   $asyncLoopback = new Stream_Async_LoopBack();
@@ -47,20 +47,20 @@ Loop::async(function() {
     'checksum' => 'XY',
   ];
 
-  Logger::logAsync('[Test] Packing and writing a structure to a loopback stream...');
+  Logger::log('[Test] Packing and writing a structure to a loopback stream...');
 
   // Записываем структуру одной командой
   $bytesWritten = $stream->schema($packetSchema)->write($originalData);
   $bytesWritten = $stream->schema($packetSchema)->write($originalData);
-  Logger::logAsync("[Test] Successfully wrote $bytesWritten bytes.");
+  Logger::log("[Test] Successfully wrote $bytesWritten bytes.");
 
-  Logger::logAsync('[Test] Reading and deserializing a structure from a stream...');
+  Logger::log('[Test] Reading and deserializing a structure from a stream...');
 
   // Читаем структуру из этого же стрима
   $parsedData = $stream->read($packetSchema); // The same
   $parsedData = $stream->schema($packetSchema)->read();
 
-  Logger::logAsync('[Test] Verification of the obtained results:');
+  Logger::log('[Test] Verification of the obtained results:');
 
   // Проверяем корректность восстановления данных
   assert($parsedData['magic_marker'] === $originalData['magic_marker'], 'Failure magic_marker');

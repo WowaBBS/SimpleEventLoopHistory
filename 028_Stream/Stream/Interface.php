@@ -18,7 +18,7 @@ interface IStream
   function unread   (string $data  ,bool $new=false): void   ; // ¬озвращает обратно прочитанные ранее данные, что бы прочитать ещЄ раз. ≈сли $new, то подсовываютс€ не те данные, которые были ранее прочитаны.
   function skip     (int    $size                  ): void   ; // —кипает $size байт
   function readLine (string $till="\n", bool $strict=false)  ; // „итает строку до $till и сам $till скипает, если не $strict и данные кончились, возвращает их.
-  function read     (...$args                 ):array|string ; 
+  function read     (...$args                      ): mixed  ; // array|string|object
   function until    (                              )         ;
 
 //****************************************************************

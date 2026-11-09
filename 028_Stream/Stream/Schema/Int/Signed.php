@@ -15,15 +15,14 @@ class Stream_Schema_Int_Signed extends Stream_Schema_Int
     $this->limit    = $limit    ;
   }
 
-  public function read(IStream $stream, array $context): int
+  public function read(IStream $stream, mixed &$value, $context): void
   {
-    $value = $this->unsigned->read($stream, $context);
-    if ($value < $this->limit) return $value;
-  //Logger::debug($value, ' signed limit ',$this->limit);
-    return $value - ($this->limit <<1);
+    $this->unsigned->read($stream, $value, $context);
+    if ($value >= $this->limit)
+      $value -= $this->limit <<1;
   }
 
-  public function write(IStream $stream, mixed $value, array $context): int
+  public function write(IStream $stream, mixed $value, $context): int
   {
     return $this->unsigned->write($stream, $value, $context);
   }

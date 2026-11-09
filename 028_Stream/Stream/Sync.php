@@ -33,7 +33,7 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
   function peek     (int    $min=1 ,?int $max=null  ): string { return $this->reader->peek     ($min  ,$max); }
   function unread   (string $data  ,bool $new=false ): void   {        $this->reader->unread   ($data ,$new); }
   function skip     (int    $size                   ): void   {        $this->reader->skip     ($size      ); }
-  function read     (...$args                  ):array|string { return $this->reader->read     (...$args   ); }
+  function read     (    ...$args                   ): mixed  { return $this->reader->read     (...$args   ); }
   function until    (                               )         { return $this->reader->until    (           ); }
   function readLine (string $till="\n", bool $strict=false)   { return $this->reader->readLine ($till ,strict: $strict); }
 

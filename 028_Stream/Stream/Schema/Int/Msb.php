@@ -1,20 +1,19 @@
 <?php
 class Stream_Schema_Type_VarintMsb extends Stream_Schema_Int
 {
-  public function read(IStream $stream, array $context): int
+  public function read(IStream $stream, mixed &$value, $context): void
   {
-    $result = 0; $shift = 0;
+    $value = 0; $shift = 0;
     while (true)
     {
       $byte = ord($stream->readData(1));
-      $result |= ($byte & 0x7F) << $shift;
+      $value |= ($byte & 0x7F) << $shift;
       if (($byte & 0x80) === 0) break;
       $shift += 7;
     }
-    return $result;
   }
 
-  public function write(IStream $stream, mixed $value, array $context): int
+  public function write(IStream $stream, mixed $value, $context): int
   {
     $bytes = '';
     while ($value >= 0x80)

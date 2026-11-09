@@ -74,6 +74,11 @@ class Stream_IO_Writer extends Stream_IO_Base
         }
         throw new \LogicException('Unallowed write assoc array');
       case 'object': //TODO:
+        if ($arg instanceof IStream_Schema_Object)
+        {
+          $res += $this->schema($arg)->write($arg);
+          break;
+        }
         if ($arg instanceof Stringable)
         {
           $res += $this->writeData($arg);
@@ -95,7 +100,7 @@ class Stream_IO_Writer extends Stream_IO_Base
   function peek     (int    $min=1 ,?int $max=null  ): string { return $this->unknown('peek'     ,$min  ,$max); }
   function unread   (string $data  ,bool $new=false ): void   {        $this->unknown('unread'   ,$data ,$new); }
   function skip     (int    $size                   ): void   {        $this->unknown('skip'     ,$size      ); }
-  function read     (...$args                  ):array|string { return $this->unknown('read'     ,...$args   ); }
+  function read     (...$args                       ): mixed  { return $this->unknown('read'     ,...$args   ); }
   function until    (                               )         { return $this->unknown('until'                ); }
   function readLine (string $till="\n", bool $strict=false)   { return $this->unknown('readLine' ,$till      ); }
 

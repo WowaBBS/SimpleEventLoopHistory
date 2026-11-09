@@ -11,19 +11,18 @@ class Stream_Schema_Struct extends Stream_Schema_Node
     $this->fields = $fields;
   }
   
-  public function read(IStream $stream, array $context =[]): array
+  public function read(IStream $stream, mixed &$value, $context): void
   {
-    $result = [];
+    if (!is_array($value) && !($value instanceof ArrayAccess))
+      $value = [];
     foreach ($this->fields as $key => $node)
-      $result[$key] = $node->read($stream, $result);
-    
-    return $result;
+      $node->read($stream, $value[$key], $value);
   }
 
-  public function write(IStream $stream, mixed $value, array $context =[]): int
+  public function write(IStream $stream, mixed $value, $context): int
   {
     if (!is_array($value))
-      throw new \InvalidArgumentException("Данные для Stream_Schema_Struct должны быть массивом.");
+      throw new \InvalidArgumentException('Данные для Stream_Schema_Struct должны быть массивом.');
     
     $totalBytes = 0;
     foreach ($this->fields as $key => $node)

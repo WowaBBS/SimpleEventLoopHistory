@@ -156,7 +156,7 @@ class Stream_IO_Reader extends Stream_IO_Base
 
   function readLine(string $end="\n", bool $strict=false) { return $this->until()->str($end)->strict($strict)->read(); }
 
-  function read(...$args): array|string
+  function read(...$args): mixed
   {
     if (empty($args)) return $this->readData(1, 0);
     if (is_float($args[0]))
@@ -171,6 +171,7 @@ class Stream_IO_Reader extends Stream_IO_Base
     // РЕШЕНИЕ: Если пришел массив-карта, отдаем его в хелпер, передавая сам стрим
     if (is_array    ($arg)) return $this->schema(Stream_Schema_Factory::create($arg));
     if ($arg instanceof IStream_Codec) return $this->schema($arg)->read();
+    if ($arg instanceof IStream_Schema_Object) return $this->schema($arg)->read($arg);
     
     throw new \InvalidArgumentException('Unallowed read type '. gettype($arg));
   }

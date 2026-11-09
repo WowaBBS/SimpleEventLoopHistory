@@ -16,7 +16,7 @@ class Stream_Schema_Int_Factory
     # 'int48' ,'uint48' ,'int48le' ,'uint48le' ,'int48be' ,'uint48be' ,'int48me' ,'uint48me' ,
     # 'int64' ,'uint64' ,'int64le' ,'uint64le' ,'int64be' ,'uint64be' ,'int64me' ,'uint64me' ,
     # 'float32', 'float32le', 'float32be', 'float32me',
-    # 'float64', 'float64le', 'float64be', 'float64me' =>self::get(strtr($name, ['uint'=>'u', 'int'=>'i', 'float'=>'f'])),
+    # 'float64', 'float64le', 'float64be', 'float64me' =>self::get(strtr($name, ['uint'=>'UInt', 'int'=>'Int', 'float'=>'Float'])),
       
       'int16'  ,'int24'  ,'int32'  ,'int48'  ,'int64'  ,'float32' ,
       'uint16' ,'uint24' ,'uint32' ,'uint48' ,'uint64' ,'float64' =>self::manualEndian($name),

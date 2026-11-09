@@ -4,10 +4,10 @@ interface IStream_Codec
   function getSize(): int;
   
   /** Чтение поля из стрима */
-  function read(IStream $stream, array $context): mixed;
+  function read(IStream $stream, mixed &$value, $context): void;
   
   /** Запись поля в стрим. Возвращает количество записанных байт */
-  function write(IStream $stream, mixed $value, array $context): int;
+  function write(IStream $stream, mixed $value, $context): int;
 }
 
 /**
@@ -33,6 +33,6 @@ class Stream_Schema_Custom extends Stream_Schema_Node
     $this->write = $write ;
   }
   
-  function read  (IStream $stream,               array $context): mixed { return ($this->read  )($stream,         $context); }
-  function write (IStream $stream, mixed $value, array $context): int   { return ($this->write )($stream, $value, $context); }
+  function read  (IStream $stream, mixed &$value ,$context): void  { $value=($this->read  )($stream         ,$context); }
+  function write (IStream $stream, mixed  $value ,$context): int   { return ($this->write )($stream ,$value ,$context); }
 }

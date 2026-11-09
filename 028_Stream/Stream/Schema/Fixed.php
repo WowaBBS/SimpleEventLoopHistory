@@ -8,12 +8,12 @@ class Stream_Schema_Fixed extends Stream_Schema_Node
     $this->size = $size;
   }
   
-  public function read(IStream $stream, array $context =[]): array
+  public function read(IStream $stream, mixed &$value, $context): void
   {
-    return $node->read($this->size);
+    $value = $stream->read($this->size);
   }
 
-  public function write(IStream $stream, mixed $value, array $context =[]): int
+  public function write(IStream $stream, mixed $value, $context): int
   {
     if (!is_string($value))
       throw new \InvalidArgumentException("Данные для Stream_Schema_Size должны быть string.");

@@ -19,16 +19,17 @@ class Stream_Schema_Prefixed extends Stream_Schema_Node
     $this->lengthType = Stream_Schema_Factory::get($lengthFormat);
   }
 
-  public function read(IStream $stream, array $context): string
+  public function read(IStream $stream, mixed &$value, $context): void
   {
     // 1. Сначала скрыто читаем длину префикса
-    $length = $this->lengthType->read($stream, $context);
+    $length = 0;
+    $this->lengthType->read($stream, $length, $context);
     
     // 2. Теперь читаем саму строку на основе этой длины
-    return $stream->readData((int)$length);
+    $value  = $stream->readData((int)$length);
   }
 
-  public function write(IStream $stream, mixed $value, array $context): int
+  public function write(IStream $stream, mixed $value, $context): int
   {
     $stringData = (string)$value;
     

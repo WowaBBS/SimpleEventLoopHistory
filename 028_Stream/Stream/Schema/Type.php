@@ -26,7 +26,7 @@ class Stream_Schema_Type extends Stream_Schema_Node
       throw new \InvalidArgumentException("Неизвестный бинарный формат: '{$this->format}'");
   }
 
-  public function read(IStream $stream, array $context): mixed
+  public function read(IStream $stream, mixed &$value, $context): void
   {
     $config = self::FORMATS[$this->format];
     // Запрашиваем у переданного стрима точное количество байт
@@ -42,7 +42,7 @@ class Stream_Schema_Type extends Stream_Schema_Node
     return $value;
   }
 
-  public function write(IStream $stream, mixed $value, array $context): int
+  public function write(IStream $stream, mixed $value, $context): int
   {
     $config = self::FORMATS[$this->format];
     if (is_int($value) && str_starts_with($this->format, 'i'))

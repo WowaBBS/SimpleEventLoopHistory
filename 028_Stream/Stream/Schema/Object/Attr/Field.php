@@ -1,6 +1,6 @@
 <?
 #[Attribute(Attribute::TARGET_PROPERTY)]
-class Stream_Schema_Object_Field
+class Stream_Schema_Object_Attr_Field
 {
   public function __construct(
     public  mixed  $type, // Может быть строкой ('u8', 'i32l'), интом (fixed) или именем класса вложенной структуры
