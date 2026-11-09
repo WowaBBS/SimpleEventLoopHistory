@@ -40,6 +40,6 @@ class Stream_Sync implements IStream, IDebug_Leak_Object
 //****************************************************************
 // Others
 
-  function schema(IStream_Codec $schema): Stream_Schema_Context { return new Stream_Schema_Context($this, $schema); }  
+  function schema(mixed $schema): Stream_Schema_Context { return Stream_Schema_Factory::schema($this, $schema); }
   function close() {} //TODO:
 }

@@ -77,10 +77,10 @@ Loop::async(function() {
 
   // Сверка float с допустимой дельтой погрешности
   assert(abs($parsedData['vectors']['alpha'] - $originalData['vectors']['alpha']) < 0.0001, 'Failure alpha float');
-  Logger::log('  - Vector Alpha (f32l): OK (' , $parsedData['vectors']['alpha'] , ')');
+  Logger::log('  - Vector Alpha (f32le): OK (' , $parsedData['vectors']['alpha'] , ')');
 
   assert(abs($parsedData['vectors']['beta'] - $originalData['vectors']['beta']) < 0.000000001, 'Failure beta double');
-  Logger::log('  - Vector Beta (f64b): OK (' , $parsedData['vectors']['beta'] , ')');
+  Logger::log('  - Vector Beta (f64be): OK (' , $parsedData['vectors']['beta'] , ')');
 
   Logger::log('[Test] ALL CHECKS PASSED SUCCESSFULLY! The codec works perfectly,');
 

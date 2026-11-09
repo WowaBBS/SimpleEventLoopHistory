@@ -178,11 +178,10 @@ class Stream_IO_Reader extends Stream_IO_Base
 //****************************************************************
 // Unused
 
-  function write     (    ...$args): int  { return Unknown($args); }
-  function writeData (string $data): int  { return Unknown($data); }
-  function writeEnd  (            ): void {        Unknown(     ); }
+  function write     (    ...$args): int  { return $this->unknown('write'     ,$args); }
+  function writeData (string $data): int  { return $this->unknown('writeData' ,$data); }
+  function writeEnd  (            ): void {        $this->unknown('writeEnd'        ); }
 
-  function schema(IStream_Codec $schema): Stream_Schema_Context { return new Stream_Schema_Context($this, $schema); }
   function close() {} //TODO:
   
 //****************************************************************

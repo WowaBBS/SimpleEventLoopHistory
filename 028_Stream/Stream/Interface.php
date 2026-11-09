@@ -24,7 +24,7 @@ interface IStream
 //****************************************************************
 // Others
 
-  function schema(IStream_Codec $schema): Stream_Schema_Context;
+  function schema(mixed $schema): Stream_Schema_Context;
 
   function close();
 }

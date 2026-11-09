@@ -24,8 +24,9 @@ class Stream_Schema_Int_Factory
       'int16me'  ,'int24me'  ,'int32me'  ,'int48me'  ,'int64me'  ,'float32me' ,
       'uint16me' ,'uint24me' ,'uint32me' ,'uint48me' ,'uint64me' ,'float64me' =>self::machineEndian($name),
       
-       // Rusl like
-       // Default    i   le   u        i   be   u        i   me   u
+      // Rusl like
+      // Default    i   le   u        i   be   u        i   me   u
+      'i8'  ,'u8'  ,
       'i16' ,'u16' ,'i16le' ,'u16le' ,'i16be' ,'u16be' ,'i16me' ,'u16me' ,
       'i24' ,'u24' ,'i24le' ,'u24le' ,'i24be' ,'u24be' ,'i24me' ,'u24me' ,
       'i32' ,'u32' ,'i32le' ,'u32le' ,'i32be' ,'u32be' ,'i32me' ,'u32me' ,

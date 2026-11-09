@@ -89,17 +89,16 @@ class Stream_IO_Writer extends Stream_IO_Base
 //****************************************************************
 // Unused
 
-  function waitData (                               ): bool   { return Unknown(           ); }
-  function waitMore (                               ): bool   { return Unknown(           ); }
-  function readData (int    $size  ,?int $min=null  ): string { return Unknown($size ,$min); }
-  function peek     (int    $min=1 ,?int $max=null  ): string { return Unknown($min  ,$max); }
-  function unread   (string $data  ,bool $new=false ): void   {        Unknown($data ,$new); }
-  function skip     (int    $size                   ): void   {        Unknown($size      ); }
-  function read     (...$args                  ):array|string { return Unknown(...$args   ); }
-  function until    (                               )         { return Unknown(           ); }
-  function readLine (string $till="\n", bool $strict=false)   { return Unknown($till      ); }
+  function waitData (                               ): bool   { return $this->unknown('waitData'             ); }
+  function waitMore (                               ): bool   { return $this->unknown('waitMore'             ); }
+  function readData (int    $size  ,?int $min=null  ): string { return $this->unknown('readData' ,$size ,$min); }
+  function peek     (int    $min=1 ,?int $max=null  ): string { return $this->unknown('peek'     ,$min  ,$max); }
+  function unread   (string $data  ,bool $new=false ): void   {        $this->unknown('unread'   ,$data ,$new); }
+  function skip     (int    $size                   ): void   {        $this->unknown('skip'     ,$size      ); }
+  function read     (...$args                  ):array|string { return $this->unknown('read'     ,...$args   ); }
+  function until    (                               )         { return $this->unknown('until'                ); }
+  function readLine (string $till="\n", bool $strict=false)   { return $this->unknown('readLine' ,$till      ); }
 
-  function schema(IStream_Codec $schema): Stream_Schema_Context { return new Stream_Schema_Context($this, $schema); }  
   function close() {} //TODO:
 
 //****************************************************************

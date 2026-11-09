@@ -36,4 +36,12 @@ class Stream_Schema_Factory
       ??Stream_Schema_Prefixed ::try($name)
       ??throw new \LogicException("Неизвестный бинарный формат: '$name'");
   }
+  
+  static function schema(IStream $stream, IStream_Codec|string|IStream_Schema_Object $schema): Stream_Schema_Context
+  {
+    if ($schema instanceof IStream_Schema_Object) $schema = $schema::class;
+    if (is_string($schema)) $schema = Stream_Schema_Object_Compiler::compile($schema);
+    if ($schema instanceof IStream_Codec) return new Stream_Schema_Context($stream, $schema);
+    TODO::Exception();
+  }
 }

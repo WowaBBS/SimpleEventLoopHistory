@@ -461,7 +461,8 @@ Loop::async(function() {
       foreach ($subs as $k2=>[$subType, $hex, $bin, $value])
         try
         {
-          $desired = $hex;
+          if ($value === null) continue;
+          $desired = strtolower($hex);
           $asyncLoopback = new Stream_Async_LoopBack();
     
           $stream = $asyncLoopback->syncStream();
@@ -469,10 +470,9 @@ Loop::async(function() {
           $stream->schema(Factory::get($subType))->write($value);
           $stream->writeEnd();
 
-        /* TODO:
           $result = $stream->until()->end()->read();
           $actual = bin2hex($result);
-          if (Assert::equals($desired, $actual, ['Failure ', $subType, ', Value=', $desired, ', hex=', $hex, ', Limit=', $limit>>1, 'k'=>[$k1, $khex, $k2]]))
+          if (Assert::equals($desired, $actual, ['Failure ', $subType, ', Value=', $value, ', hex=', $hex, ', Limit=', $limit>>1, 'k'=>[$k1, $khex, $k2]]))
             Logger::log('>',$subType, ' ', $hex, ' Ok'); //,['k'=>[$k1, $khex, $k2]]);
           else
           { //try again for debug
@@ -481,10 +481,14 @@ Loop::async(function() {
   
             $stream = $asyncLoopback->syncStream();
             
-            $stream->write($bin);
+            $context = $stream->schema(Factory::get($subType));
+            $context->write($value);
             $stream->writeEnd();
-            $actual = $stream->schema(Factory::get($subType))->read();
+
+            $result = $stream->until()->end()->read();
+            $actual = bin2hex($result);
           }
+        /* TODO:
         */
         }
         catch(\Throwable $e)
@@ -492,7 +496,10 @@ Loop::async(function() {
           if ($desired === null)
             Logger::log('>',$subType, ' ', $hex, ' Ok null');
           else
+          {
             Logger::error('>',$subType, ' ', $hex, ' Exception, desired=',$desired)->exception($e);
+            exit;
+          }
         }
     }
   }

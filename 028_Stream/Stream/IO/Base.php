@@ -85,5 +85,11 @@ abstract class Stream_IO_Base implements IStream_IO, IDebug_Leak_Object
     $this->stack_call($this);
   }
   
+  function unknown($name, ...$args)
+  {
+    throw new LogicException("Method $name is not implemented");
+  }
+  
 //****************************************************************
+  function schema(mixed $schema): Stream_Schema_Context { return Stream_Schema_Factory::schema($this, $schema); }
 }

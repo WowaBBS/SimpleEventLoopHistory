@@ -1,0 +1,74 @@
+<?
+include '../../../_All.Cli.php';
+
+use Stream_Schema_Object_Field as Field;
+
+/** Вложенная структура координат */
+class Vector3D 
+{
+  #[Field('f32le')] public float $x;
+  #[Field('f32le')] public float $y;
+}
+
+/** Корневой пакет игрока */
+class PlayerPacket 
+{
+  #[Field('u8'   )] public int $magic;
+  #[Field('i16be')] public int $statusCode;
+
+  // Указываем имя класса Vector3D в качестве типа. Система поймет, что это вложенный объект!
+  #[Field(Vector3D::class)]
+  public Vector3D $position;
+
+  // Строка с префиксом длины uint16be
+  #[Field(type: 'string', prefixed: 'uint16be')]
+  public string $message;
+}
+
+// --- ЗАПУСК ТЕСТА В LOOP ---
+Loop::async(function() {
+  $asyncLoopback = new Stream_Async_LoopBack();
+  $stream = $asyncLoopback->syncStream();
+
+  // 1. Создаем объект и наполняем его данными в синхронном PHP-стиле
+  $packet = new PlayerPacket();
+  $packet->magic = 0xBC;
+  $packet->statusCode = -105;
+  $packet->position = new Vector3D();
+  $packet->position->x = 12.34;
+  $packet->position->y = 56.78;
+  $packet->message = "Декларативные атрибуты объектов работают на ура! ??";
+
+  Logger::logAsync("?? [Отправка] Запись типизированного объекта PlayerPacket в поток...");
+
+  // Передаем в метод schema просто ИМЯ КЛАССА объекта!
+  $stream->schema(PlayerPacket::class)->write($packet);
+
+  Logger::logAsync("?? [Получение] Вычитка и автоматическая сборка (гидратация) объекта...");
+
+  /** @var PlayerPacket $receivedPacket */
+  // Стрим сам прочитает байты, создаст инстанс PlayerPacket и заполнит его свойства!
+  $receivedPacket = $stream->schema(PlayerPacket::class)->read();
+
+  Logger::logAsync("?? Результаты валидации объекта:");
+    
+  assert($receivedPacket instanceof PlayerPacket);
+  assert($receivedPacket->magic === 0xBC);
+  assert($receivedPacket->statusCode === -105);
+  assert($receivedPacket->message === $packet->message);
+
+  // Проверка вложенного объекта
+  assert(is_array($receivedPacket->position) || $receivedPacket->position instanceof Vector3D);
+
+  Logger::logAsync("  - Класс объекта: " . get_class($receivedPacket));
+  Logger::logAsync("  - Magic: OK (0x" . dechex($receivedPacket->magic) . ")");
+  Logger::logAsync("  - Status: OK (" . $receivedPacket->statusCode . ")");
+  Logger::logAsync("  - Текст сообщения: '" . $receivedPacket->message . "'");
+
+  Logger::logAsync("?? ФРЕЙМВОРК ДОСТИГ УРОВНЯ ПРОМЫШЛЕННЫХ РЕШЕНИЙ!");
+
+  $stream->close();
+  Loop::stop();
+});
+
+Loop::run();

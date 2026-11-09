@@ -16,14 +16,14 @@ class Stream_Schema_Int_Utf8 extends Stream_Schema_Int
   const low  = [4,4,4,4,4,4,4,4 , 5,5,5,5,6,6,7,8];
   
   const write = [ // fromat  or mask                             and mask
-    0x0000000080 => ['C1', "\xFF"                             ,"\x7F"        ],
-    0x0000000800 => ['C2', "\xC0\x80"                         ,"\x1F?"       ],
-    0x0000010000 => ['C3', "\xE0\x80\x80"                     ,"\x0F??"      ],
-    0x0000200000 => ['C4', "\xF0\x80\x80\x80"                 ,"\x07???"     ],
-    0x0004000000 => ['C5', "\xF8\x80\x80\x80\x80"             ,"\x03????"    ],
-    0x0080000000 => ['C6', "\xFC\x80\x80\x80\x80\x80"         ,"\x01?????"   ],
-    0x1000000000 => ['C7', "\xFE\x80\x80\x80\x80\x80\x80"     ,"\x00??????"  ],
-    0x2000000000 => ['C8', "\xFF\x80\x80\x80\x80\x80\x80\x80" ,"\x00???????" ],
+    0x0000000080 => ['C1', "\x00"                             ,"\x7F"        ,[0]],
+    0x0000000800 => ['C2', "\xC0\x80"                         ,"\x1F?"       ,[0,0]],
+    0x0000010000 => ['C3', "\xE0\x80\x80"                     ,"\x0F??"      ,[0,0,0]],
+    0x0000200000 => ['C4', "\xF0\x80\x80\x80"                 ,"\x07???"     ,[0,0,0,0]],
+    0x0004000000 => ['C5', "\xF8\x80\x80\x80\x80"             ,"\x03????"    ,[0,0,0,0,0]],
+    0x0080000000 => ['C6', "\xFC\x80\x80\x80\x80\x80"         ,"\x01?????"   ,[0,0,0,0,0,0]],
+    0x1000000000 => ['C7', "\xFE\x80\x80\x80\x80\x80\x80"     ,"\x00??????"  ,[0,0,0,0,0,0,0]],
+    0x2000000000 => ['C8', "\xFF\x80\x80\x80\x80\x80\x80\x80" ,"\x00???????" ,[0,0,0,0,0,0,0,0]],
   ];
 
   public function read(IStream $stream, array $context): int
@@ -48,9 +48,9 @@ class Stream_Schema_Int_Utf8 extends Stream_Schema_Int
   {
     foreach (self::write as $limit=>$rule)
     {
-      if ($v > $limit) continue;
-      $bytes = [0]; //8-1
-      for ($i = strlen($rule[1])-1; $i >=0 ; $i--, $v >>= 6)
+      if ($v >= $limit) continue;
+      $bytes = $rule[3]; //8-1
+      for ($i = count($bytes)-1; $i >=0 ; $i--, $v >>= 6)
         $bytes[$i] = $v;
       
       $result  = pack($rule[0], ...$bytes);

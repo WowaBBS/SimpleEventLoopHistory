@@ -41,7 +41,7 @@ class Stream_Async_LoopBack extends Stream_Async_Base
   {
     parent::handleRead();
     if (!$this->isReading()) return;
-    if (!$this->hasDataToRecv()) return;
+    if (!$this->hasDataToRecv() && !$this->isEnd) return;
     $this->startRecv(true);
   }
 
@@ -76,8 +76,8 @@ class Stream_Async_LoopBack extends Stream_Async_Base
   {
     if ($this->isEnd) return;
     $this->isEnd = true;
-    if ($this->hasDataToRecv()) return;
     if (!$this->isReading()) return;
+    if ($this->hasDataToRecv()) return;
     $this->startRecv(true);
   }
 
